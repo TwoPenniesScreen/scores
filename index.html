@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta http-equiv="Cache-Control" content="no-store" />
+  <title>The Two Pennies — Live Scores (Static Prototype)</title>
+
+  <style>
+    @font-face{
+      font-family:"TwoPenniesPlain";
+      src:url("./assets/Twopenniesplain-Regular.ttf") format("truetype");
+      font-display:swap;
+    }
+
+    :root{
+      --fg: #f3f3f3;
+      --muted: rgba(243,243,243,.78);
+      --card: rgba(0,0,0,.55);
+      --stroke: rgba(255,255,255,.12);
+      --rowbg: rgba(0,0,0,.28);
+      --rowstroke: rgba(255,255,255,.10);
+
+      /* Keep the scores card no taller than your Metro panel */
+      --card-max-h: 56vh; /* tweak: 54vh / 58vh */ /* tweak: 50vh / 54vh etc */
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ width:100%; height:100%; margin:0; overflow:hidden; background:#0b0b0b; }
+    body{
+      font-family: TwoPenniesPlain, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--fg);
+    }
+
+    .bg{
+      position:fixed; inset:0;
+      background-position:center;
+      background-size:cover;
+      background-repeat:no-repeat;
+      z-index:0;
+    }
+    body[data-mode="welcome"] .bg{ background-image:url('./assets/Generic.png'); }
+    body[data-mode="live"] .bg{ background-image:url('./assets/Live.png'); }
+
+    /* Background can cover (texture can be safely cropped) */
+    /* Overlays must NEVER crop */
+    /* Mode visibility */
+    .overlay-welcome, .overlay-live{ transition: opacity .25s ease; pointer-events:none; }
+    body[data-mode="live"] .overlay-live{ opacity:1; }
+    body[data-mode="welcome"] .overlay-welcome{ display:block; }
+    body[data-mode="live"] .overlay-welcome{ display:none; }
+
+    .content{
+      position:relative;
+      z-index: 20;
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 60px 80px;
+    }
+
+    body[data-mode="welcome"] .scoresCard{
+      transform: translateY(-100px);
+ display:none; }
+    body[data-mode="live"] .scoresCard{ display:block; }
+
+    .scoresCard{
+      width: min(1500px, 82vw);
+      max-height: var(--card-max-h);
+      border-radius: 26px;
+      background: var(--card);
+      border: 1px solid var(--stroke);
+      box-shadow: 0 16px 40px rgba(0,0,0,.38);
+      padding: 22px 26px;
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .rows{
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    
+    .row{
+      border-radius: 18px;
+      background: var(--rowbg);
+      border: 1px solid var(--rowstroke);
+      padding: 12px 16px;
+      display:grid;
+      grid-template-columns: 1fr auto 1fr;
+      grid-template-rows: auto; /* status lives inside scoreLine so VS axis is bomb-proof */
+      column-gap: 18px;
+      row-gap: 0;
+      align-items:center;
+    }
+
+    
+
+    .row{
+      position: relative;
+      padding-left: 64px; /* space for comp chip */
+    }
+
+    .compChip{
+      position:absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-62%); /* align with scoreline row, not including status */
+      min-width: 42px;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 999px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      color: rgba(255,255,255,.88);
+      background: rgba(255,255,255,.10);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 8px 18px rgba(0,0,0,.18);
+      pointer-events:none;
+    }
+
+    /* Scroll viewport (only used when >5 games) */
+    .scrollViewport{
+      overflow:hidden;
+      width:100%;
+      padding-top: 8px;
+      /* soften the top edge so rows don't 'snap' under the pinned card */
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 22px, black 100%);
+      mask-image: linear-gradient(to bottom, transparent 0px, black 22px, black 100%);
+    }
+    .scrollInner{
+      display:flex;
+      flex-direction:column;
+      gap: 12px;
+      will-change: transform;
+      animation: scrollUp var(--scroll-duration, 40s) linear infinite;
+    }
+    @keyframes scrollUp{
+      to{ transform: translateY(calc(-1 * var(--scroll-distance, 0px))); }
+    }
+
+.team{
+      font-size: 30px;
+      line-height: 1.05;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      align-self: center; /* aligns with scoreline row */
+    }
+    .team.home{ text-align:right; padding-right: 6px; grid-column:1; grid-row:1; }
+    .team.away{ text-align:left;  padding-left: 6px; grid-column:3; grid-row:1; }
+
+    /* Centre axis: FIXED columns so VS never shifts (even for 10 vs 2 etc) */
+    .scoreLine{
+      grid-column:2;
+      grid-row:1;
+      display:grid;
+      grid-template-columns: 54px 54px 54px; /* score / vs / score */
+      grid-template-rows: auto auto;          /* row1: scoreline, row2: status */
+      align-items: baseline;
+      justify-items:center;
+      row-gap: 6px;
+    }
+    .score{
+      font-size: 46px;
+      font-weight: 600; /* B */
+      line-height: 1;
+      min-width: 24px;
+      text-align:center;
+    
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
+    .vs{
+      font-size: 24px;
+      font-weight: 500;
+      opacity: .92;
+      text-align:center;
+      letter-spacing: .5px;
+      grid-column:2;
+      grid-row:1;
+    }
+    .status{
+      grid-column:2;
+      grid-row:2;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--muted);
+      text-align:center;
+      justify-self:center;
+      width: 54px; /* match the VS column width */
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
+
+    .row.nufc{
+      background: rgba(255,255,255,.06);
+      border: 1.5px solid rgba(255,255,255,.75);
+    }
+
+    .debug{
+      position:fixed;
+      top: 90px;            /* below header safe area */
+      left: 24px;
+      z-index: 999999;
+      display: none;
+      gap:10px;
+      opacity: 1;
+      pointer-events:auto;
+      font-size:14px;
+      padding: 10px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.72);
+      backdrop-filter: blur(6px);
+      border: 1px solid rgba(255,255,255,.22);
+    }
+    .debug button{
+      font-family:inherit;
+      padding:10px 12px;
+      border-radius: 12px;
+      border:1px solid rgba(255,255,255,.35);
+      background: rgba(255,255,255,.10);
+      color: #fff;
+    }
+  
+body[data-mode="welcome"] {
+  background: url('./assets/Generic.png') center / cover no-repeat;
+}
+
+body[data-mode="live"] {
+  background: url('./assets/Live.png') center / cover no-repeat;
+}
+
+
+    .row--highlight{
+      box-shadow: 0 0 0 2px rgba(255,255,255,.28) inset;
+      border-radius: 14px;
+    }
+
+body[data-debug="1"] [data-debug-status]{display:block !important;}
+</style>
+</head>
+<body data-mode="welcome">
+  <div class="bg" aria-hidden="true"></div>
+
+  <!-- Debug / test controls (remove for permanent deploy) -->
+  <div class="debug" data-debug-panel" aria-label="Debug controls">
+    <button id="btnWelcome" type="button">WELCOME</button>
+    <button id="btnLive" type="button">LIVE</button>
+    <button id="btnMany" type="button">6 ROWS</button>
+    <button id="btnFew" type="button">3 ROWS</button>
+  </div>
+
+  
+  
+
+
+  <div class="content">
+    <div class="scoresCard" aria-label="Scores card">
+      <div class="rows" id="rowsPinned"></div>
+      <div class="scrollViewport" id="scrollViewport" style="display:none;"></div>
+    </div>
+  </div>
+  <script>
+    // URL overrides (for testing)
+    // ?mode=live | ?mode=welcome forces mode
+    // ?debug=1 forces debug panel visible (otherwise it stays visible in this build anyway)
+    (function(){
+      const params = new URLSearchParams(window.location.search);
+      const mode = (params.get('mode') || '').toLowerCase();
+      if (mode === 'live') document.body.setAttribute('data-mode','live');
+      if (mode === 'welcome') document.body.setAttribute('data-mode','welcome');
+    })();
+
+    const rowsPinned = document.getElementById('rowsPinned');
+    const scrollViewport = document.getElementById('scrollViewport');
+
+    const sample6 = [
+      {home:"Newcastle United", hs:1, as:0, away:"Aston Villa", st:"63'", nufc:true, comp:"PL"},
+      {home:"Arsenal", hs:2, as:2, away:"Spurs", st:"HT", comp:"PL"},
+      {home:"Man City", hs:0, as:0, away:"Chelsea", st:"41'", comp:"PL"},
+      {home:"Brighton & Hove Albion", hs:10, as:2, away:"Wolves", st:"FT", comp:"PL"},
+      {home:"Everton", hs:0, as:1, away:"Fulham", st:"78'", comp:"PL"},
+      {home:"West Ham", hs:1, as:3, away:"Liverpool", st:"90+2'", comp:"PL"}
+    ];
+
+    const sample3 = sample6.slice(0,3);
+
+    
+    // Prototype default (used only by the sample renderer below).
+// IMPORTANT: keep this name unique (API section later defines its own MAX_VISIBLE).
+const MAX_VISIBLE_DEFAULT = 5;
+
+    function rowHTML(r){
+      const comp = (r.comp || "").toUpperCase();
+      return `
+        <div class="row${r.nufc ? " nufc" : ""}">
+          <div class="compChip">${comp}</div>
+          <div class="team home">${r.home}</div>
+          <div class="scoreLine">
+            <span class="score" style="grid-column:1;grid-row:1;">${r.hs}</span>
+            <span class="vs">vs</span>
+            <span class="score" style="grid-column:3;grid-row:1;">${r.as}</span>
+            <div class="status">${r.st}</div>
+          </div>
+          <div class="team away">${r.away}</div>
+        </div>
+      `;
+    }
+
+    function render(list){
+      // Reset
+      rowsPinned.innerHTML = "";
+      scrollViewport.style.display = "none";
+      scrollViewport.innerHTML = "";
+
+      // If <= MAX_VISIBLE: show all, no scroll
+      if (list.length <= MAX_VISIBLE_DEFAULT){
+        rowsPinned.innerHTML = list.map(rowHTML).join("");
+        return;
+      }
+
+      // > MAX_VISIBLE: pin NUFC game if present, otherwise no pin
+      let pinned = null;
+      const rest = [];
+      for (const g of list){
+        if (!pinned && g.nufc){ pinned = g; }
+        else { rest.push(g); }
+      }
+
+      const visibleSlots = pinned ? (MAX_VISIBLE_DEFAULT - 1) : MAX_VISIBLE_DEFAULT;
+
+      if (pinned){
+        rowsPinned.innerHTML = rowHTML(pinned);
+      }
+
+      // Build scrolling list (duplicate for seamless loop)
+      // Keep all remaining games (not just first N) so everything eventually scrolls.
+      const original = rest.slice(); // full list
+      const dup = original.concat(original);
+
+      const inner = document.createElement("div");
+      inner.className = "scrollInner";
+      inner.innerHTML = dup.map(rowHTML).join("");
+
+      scrollViewport.appendChild(inner);
+      scrollViewport.style.display = "block";
+
+      // After render, set viewport height to exactly visibleSlots rows (based on measured first row)
+      requestAnimationFrame(() => {
+        const firstRow = inner.querySelector(".row");
+        if (!firstRow) return;
+
+        const rowH = firstRow.getBoundingClientRect().height;
+        const gap = 12; // must match CSS
+        const viewportH = (rowH * visibleSlots) + (gap * (visibleSlots - 1));
+        scrollViewport.style.height = `${viewportH}px`;
+
+        // Compute scroll distance: height of original list (not duplicated)
+        // We can measure by temporarily wrapping first original count rows
+        const rows = inner.querySelectorAll(".row");
+        let dist = 0;
+        for (let i=0; i<original.length; i++){
+          dist += rows[i].getBoundingClientRect().height;
+          if (i < original.length - 1) dist += gap;
+        }
+
+        // Set speed: ~7 seconds per row (tweakable)
+        const secondsPerRow = 7;
+        const duration = Math.max(20, original.length * secondsPerRow);
+
+        scrollViewport.style.setProperty("--scroll-distance", `${dist}px`);
+        inner.style.setProperty("--scroll-distance", `${dist}px`);
+        inner.style.setProperty("--scroll-duration", `${duration}s`);
+      });
+    }
+
+
+    render(sample6);
+
+    const setMode = (m) => document.body.setAttribute("data-mode", m);
+    (() => { const el=document.getElementById("btnWelcome"); if(el) el.onclick = () => setMode("welcome"); })();
+    (() => { const el=document.getElementById("btnLive"); if(el) el.onclick = () => setMode("live"); })();
+    (() => { const el=document.getElementById("btnMany"); if(el) el.onclick = () => render(sample6); })();
+    (() => { const el=document.getElementById("btnFew"); if(el) el.onclick = () => render(sample3); })();
+  
+    // --- FOOTBALL-DATA integration (via Netlify Function) ---
+    // URL params:
+    //   comps=PL,CL,WC,EC
+    //   nufcId=<teamId>     (required to pin NUFC reliably)
+    //   pre=15             minutes before kickoff to switch to LIVE
+    //   post=15            minutes after last live match ends to stay LIVE
+    //   max=5              max visible rows
+    //   debug=1            shows debug panel
+    //   mode=live|welcome  forces mode (testing)
+    //
+    const params = new URLSearchParams(window.location.search);
+    const DEBUG = params.get("debug") === "1";
+    const forcedMode = (params.get("mode") || "").toLowerCase(); // live|welcome|""
+    const MAX_VISIBLE = Math.max(1, Math.min(8, parseInt(params.get("max") || "5", 10)));
+    const PRE_MIN = Math.max(0, Math.min(120, parseInt(params.get("pre") || "15", 10)));
+    const POST_MIN = Math.max(0, Math.min(240, parseInt(params.get("post") || "15", 10)));
+    const NUFC_ID = parseInt(params.get("nufcId") || "0", 10);
+    
+    const PIN_IDS = (params.get("pinIds") || "").split(",").map(s=>parseInt(s.trim(),10)).filter(n=>Number.isFinite(n) && n>0);
+const COMPS = (params.get("comps") || "PL,ELC,CL,WC,EC").split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+
+    const debugStatus = document.getElementById("debugStatus") || document.querySelector("[data-debug-status]");
+    if (debugStatus) debugStatus.style.display = DEBUG ? "block" : "none";
+    const debugPanel = document.getElementById("debugPanel") || document.querySelector(".debug") || document.querySelector("[data-debug-panel]");
+    if (debugPanel) debugPanel.style.display = DEBUG ? "flex" : "none";
+
+    function setDebug(text){
+      if (!debugStatus) return;
+      debugStatus.textContent = text;
+    }
+
+    function londonNow(){
+      // Use Europe/London for decisions
+      return new Date(new Intl.DateTimeFormat("en-US", { timeZone: "Europe/London", hour12:false,
+        year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit"
+      }).format(new Date()).replace(/(\d{2})\/(\d{2})\/(\d{4}),\s*/,"$3-$1-$2T").replace(" ", ""));
+    }
+
+    function minutesBetween(a, b){
+      return (b.getTime() - a.getTime()) / 60000;
+    }
+
+    function parseUtc(utcStr){
+      const d = new Date(utcStr);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function statusLabel(match){
+      // status: SCHEDULED | LIVE | IN_PLAY | PAUSED | FINISHED | etc
+      const st = match.status;
+      if (st === "PAUSED") return "HT";
+      if (st === "FINISHED") return "FT";
+      if (st === "IN_PLAY" || st === "LIVE") {
+        // football-data free doesn't provide minute; show LIVE
+        return "LIVE";
+      }
+      if (st === "SCHEDULED") {
+        // show KO time in UK time e.g. 19:45
+        const d = parseUtc(match.utcDate);
+        if (!d) return "KO";
+        const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour:"2-digit", minute:"2-digit" });
+        return fmt.format(d);
+      }
+      return st;
+    }
+
+    function scoresFor(match){
+      const ft = match.score?.fullTime || {home:null,away:null};
+      const ht = match.score?.halfTime || {home:null,away:null};
+      // choose FT when finished, otherwise FT may still be null during play
+      const hs = (ft.home ?? ht.home ?? null);
+      const as = (ft.away ?? ht.away ?? null);
+      return {
+        home: (hs === null ? "" : String(hs)),
+        away: (as === null ? "" : String(as)),
+      };
+    }
+
+    function isLiveStatus(st){
+      return st === "IN_PLAY" || st === "PAUSED" || st === "LIVE";
+    }
+
+    function competitionPriority(comp){
+      const order = ["PL","ELC","CL","WC","EC"];
+      const i = order.indexOf(comp);
+      return i === -1 ? 999 : i;
+    }
+
+    function pinAndSort(matches){
+      // Filter out errors
+      const ms = matches.filter(m => !m.__error && m.homeTeam && m.awayTeam);
+
+      // annotate
+      const annotated = ms.map(m => {
+        const homeId = m.homeTeam.id;
+        const awayId = m.awayTeam.id;
+        const kick = parseUtc(m.utcDate) || new Date(0);
+        const live = isLiveStatus(m.status);
+        const isNUFC = (NUFC_ID && (homeId === NUFC_ID || awayId === NUFC_ID));
+        // Only pin NUFC when they're actively playing (not just scheduled / finished).
+        const pin = !!(isNUFC && live);
+        return { ...m, __isNUFC:isNUFC, __pin:pin, __kick:kick, __live:live };
+      });
+
+      annotated.sort((a,b) => {
+        // NUFC first only when live
+        if (a.__pin !== b.__pin) return a.__pin ? -1 : 1;
+        // then live matches
+        if (a.__live !== b.__live) return a.__live ? -1 : 1;
+        // then competition priority
+        const cp = competitionPriority(a.comp) - competitionPriority(b.comp);
+        if (cp !== 0) return cp;
+        // then earliest kickoff
+        return a.__kick.getTime() - b.__kick.getTime();
+      });
+
+      return annotated;
+    }
+
+    function decideMode(matches){
+      if (forcedMode === "live" || forcedMode === "welcome") return forcedMode;
+
+      const now = londonNow();
+      const sorted = pinAndSort(matches);
+
+      const liveNow = sorted.some(m => isLiveStatus(m.status));
+
+      // Warm-up: if any scheduled match starts within PRE_MIN
+      const warm = sorted.some(m => {
+        if (m.status !== "SCHEDULED") return false;
+        const kick = m.__kick;
+        const mins = minutesBetween(now, kick); // positive if in future
+        return mins >= 0 && mins <= PRE_MIN;
+      });
+
+      if (liveNow || warm) return "live";
+
+      // Cool-down: if the most recently finished match ended within POST_MIN.
+      // football-data doesn't give final whistle timestamp, so we use kickoff + typical duration (105 min)
+      const finished = sorted.filter(m => m.status === "FINISHED" && m.__kick.getTime() > 0);
+      if (finished.length) {
+        const latest = finished.reduce((p,c)=> (c.__kick > p.__kick ? c : p));
+        const estEnd = new Date(latest.__kick.getTime() + 105*60000);
+        const minsAfter = minutesBetween(estEnd, now); // positive after end
+        if (minsAfter >= 0 && minsAfter <= POST_MIN) return "live";
+      }
+
+      return "welcome";
+    }
+
+    async function fetchMatches(){
+      const url = `/.netlify/functions/scores?comps=${encodeURIComponent(COMPS.join(","))}`;
+      const res = await fetch(url, { cache:"no-store" });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Unknown API error");
+      return data.matches || [];
+    }
+
+    function toRowItem(m){
+      const sc = scoresFor(m);
+      const st = statusLabel(m);
+      const home = m.homeTeam.name || "";
+      const away = m.awayTeam.name || "";
+      return {
+        home,
+        away,
+        hs: sc.home === "" ? "" : sc.home,
+        as: sc.away === "" ? "" : sc.away,
+        st,
+        nufc: m.__isNUFC,
+        pinned: (m.__isPinned||false),
+        comp: m.comp,
+      };
+    }
+
+    async function tick(){
+      try{
+        setDebug(`Fetching… (${COMPS.join(",")})`);
+        const matches = await fetchMatches();
+        const sorted = pinAndSort(matches);
+        const mode = decideMode(sorted);
+        document.body.setAttribute("data-mode", mode);
+
+        // Build list: show only live + warm-up + (optionally) finished in cool-down
+        const now = londonNow();
+        let display = sorted.filter(m => {
+          if (isLiveStatus(m.status)) return true;
+          if (m.status === "SCHEDULED"){
+            const mins = minutesBetween(now, m.__kick);
+            return mins >= 0 && mins <= PRE_MIN;
+          }
+          if (m.status === "FINISHED"){
+            const estEnd = new Date(m.__kick.getTime() + 105*60000);
+            const minsAfter = minutesBetween(estEnd, now);
+            return minsAfter >= 0 && minsAfter <= POST_MIN;
+          }
+          return false;
+        });
+
+        // If nothing qualifies, fall back to nearest upcoming today (so screen isn't empty in LIVE)
+        if (mode === "live" && display.length === 0){
+          display = sorted.filter(m => m.status === "SCHEDULED").slice(0, MAX_VISIBLE);
+        }
+
+        // Render rows using existing renderer (expects objects with home/away/hs/as/st/comp/nufc)
+        const rows = display.map(toRowItem);
+
+        // Use existing render(list) from earlier code if present; otherwise build minimal
+        if (typeof render === "function") {
+          render(rows);
+        }
+
+        const nextPoll = (() => {
+          const live = display.some(m => isLiveStatus(m.status));
+          if (mode === "live" && live) return 60_000;          // 60s during live
+          if (mode === "live") return 120_000;                // 2m during warm/cool
+          return 600_000;                                     // 10m idle
+        })();
+
+        setDebug(`Mode=${mode.toUpperCase()} | rows=${rows.length} | next poll ${(nextPoll/1000)|0}s`);
+        setTimeout(tick, nextPoll);
+      }catch(e){
+        setDebug(`ERROR: ${e.message || e}`);
+        // Backoff 2 mins on errors
+        setTimeout(tick, 120_000);
+      }
+    }
+
+    // Start polling only after the page has rendered once
+    setTimeout(tick, 500);
+
+</script>
+</body>
+</html>
