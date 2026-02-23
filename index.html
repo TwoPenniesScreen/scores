@@ -146,19 +146,18 @@
   display:flex;
   flex-direction: column;
   align-items: center;
-  align-self: baseline;
 }
 
-/* Top score row shares baseline with team names */
 .scoreTop{
-  display:flex;
+  display:grid;
+  grid-template-columns: 54px 54px 54px;  /* left score / vs / right score */
   align-items: baseline;
-  justify-content:center;
-  gap: 12px;
+  justify-items: center;
   line-height: 1;
-
-  width: 162px;
 }
+.scoreTop .score:first-child{ grid-column:1; }
+.scoreTop .vs{ grid-column:2; }
+.scoreTop .score:last-child{ grid-column:3; }
 
 .score{
   font-size: 52px;
