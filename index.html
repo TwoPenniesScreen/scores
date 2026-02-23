@@ -526,7 +526,7 @@ const COMPS = (params.get("comps") || "PL,ELC,CL,WC,EC").split(",").map(s=>s.tri
         // football-data free doesn't provide minute; show LIVE
         return "LIVE";
       }
-      if (st === "SCHEDULED") {
+      if (st === "SCHEDULED" || st === "TIMED") {
         // show KO time in UK time e.g. 19:45
         const d = parseUtc(match.utcDate);
         if (!d) return "KO";
@@ -599,7 +599,7 @@ const COMPS = (params.get("comps") || "PL,ELC,CL,WC,EC").split(",").map(s=>s.tri
 
       // Warm-up: if any scheduled match starts within PRE_MIN
       const warm = sorted.some(m => {
-        if (m.status !== "SCHEDULED") return false;
+        if (m.status !== "SCHEDULED" && m.status !== "TIMED") return false;
         const kick = m.__kick;
         const mins = minutesBetween(now, kick); // positive if in future
         return mins >= 0 && mins <= PRE_MIN;
@@ -663,7 +663,7 @@ const COMPS = (params.get("comps") || "PL,ELC,CL,WC,EC").split(",").map(s=>s.tri
         const now = londonNow();
         let display = sorted.filter(m => {
           if (isLiveStatus(m.status)) return true;
-          if (m.status === "SCHEDULED"){
+          if (m.status === "SCHEDULED" || m.status === "TIMED"){
             const mins = minutesBetween(now, m.__kick);
             return mins >= 0 && mins <= PRE_MIN;
           }
