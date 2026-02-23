@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta http-equiv="Cache-Control" content="no-store" />
-  <title>The Two Pennies — Live Scores (Static Prototype)</title>
+  <title>The Two Pennies — Live Scores</title>
 
   <style>
     @font-face{
@@ -25,6 +25,7 @@
 
     *{ box-sizing:border-box; }
     html,body{ width:100%; height:100%; margin:0; overflow:hidden; background:#0b0b0b; }
+
     body{
       font-family: TwoPenniesPlain, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       color: var(--fg);
@@ -83,7 +84,7 @@
       display:grid;
       grid-template-columns: 1fr auto 1fr;
       column-gap: 18px;
-      align-items:baseline;
+      align-items: baseline;
       position: relative;
       padding-left: 64px;
     }
@@ -139,66 +140,30 @@
     .team.home{ text-align:right; padding-right: 6px; grid-column:1; }
     .team.away{ text-align:left;  padding-left: 6px; grid-column:3; }
 
-    /* Centre axis: FIXED columns so VS never shifts */
-    /* Centre axis rebuilt for true baseline alignment */
-.scoreLine{
-  grid-column:2;
-  display:flex;
-  flex-direction: column;
-  align-items: center;
-}
+    /* ---------- SCORE CENTRE (CLEAN + STABLE) ---------- */
+    .scoreLine{
+      grid-column:2;
+      display:flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
-.scoreTop{
-  display:grid;
-  grid-template-columns: 54px 54px 54px;  /* left score / vs / right score */
-  align-items: baseline;
-  justify-items: center;
-  line-height: 1;
-}
-.scoreTop .score:first-child{ grid-column:1; }
-.scoreTop .vs{ grid-column:2; }
-.scoreTop .score:last-child{ grid-column:3; }
+    .scoreTop{
+      display:grid;
+      grid-template-columns: 54px 54px 54px; /* score / vs / score */
+      align-items: baseline;
+      justify-items: center;
+      line-height: 1;
+      width: 162px;                          /* locks centre width */
+    }
 
-.score{
-  font-size: 52px;
-  font-weight: 700;
-  line-height: 0.9;          /* tighten internal box */
-  display:inline-block;
-  position: relative;
-  top: 2px;                  /* optical baseline correction */
-
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum' 1;
-}
-
-.vs{
-  font-size: 24px;
-  font-weight: 500;
-  opacity: .92;
-  line-height: 1;
-}
-
-.status{
-  .status{
-  margin-top: 6px;
-  width: 162px;              /* lock it to scoreTop width */
-  text-align: center;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-
-  font-size: 20px;
-  font-weight: 500;
-  color: var(--muted);
-}
-
-    /* Stronger, more “anchored” numerals */
     .score{
       font-size: 52px;
       font-weight: 700;
-      line-height: 1;
-      min-width: 24px;
-      text-align:center;
+      line-height: 0.9;
+      display:inline-block;
+      position: relative;
+      top: 2px;                               /* optical correction for this font */
       font-variant-numeric: tabular-nums;
       font-feature-settings: 'tnum' 1;
     }
@@ -207,25 +172,21 @@
       font-size: 24px;
       font-weight: 500;
       opacity: .92;
-      text-align:center;
-      letter-spacing: .5px;
-      grid-column:2;
-      grid-row:1;
+      line-height: 1;
     }
 
     .status{
-      grid-column:2;
-      grid-row:2;
-      font-size: 20px;
-      font-weight: 500;
-      color: var(--muted);
-      width: 54px;
+      margin-top: 6px;
+      width: 162px;                           /* centred under scoreTop */
+      text-align: center;
       display:flex;
       align-items:center;
       justify-content:center;
-      font-variant-numeric: tabular-nums;
-      font-feature-settings: 'tnum' 1;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--muted);
     }
+    /* --------------------------------------------------- */
 
     .row.nufc{
       background: rgba(255,255,255,.06);
@@ -257,6 +218,7 @@
       color: #fff;
     }
 
+    /* Status dot: always on top, always visible */
     #statusDot{
       position: fixed;
       top: 6px;
@@ -265,8 +227,9 @@
       height: 12px;
       border-radius: 50%;
       background: transparent;
-      z-index: 1000000;
+      z-index: 2147483647;
       pointer-events: none;
+      box-shadow: 0 0 0 2px rgba(0,0,0,.35);
     }
 
     .debugInfo{
@@ -284,7 +247,6 @@
     }
     .debugInfo .k{ opacity: .85; }
     .debugInfo .v{ text-align:right; }
-
   </style>
 </head>
 
@@ -329,6 +291,7 @@
     const rowsPinned = document.getElementById('rowsPinned');
     const scrollViewport = document.getElementById('scrollViewport');
 
+    // local samples
     const sample6 = [
       {home:"Newcastle United", hs:1, as:0, away:"Aston Villa", st:"63'", nufc:true, comp:"PL"},
       {home:"Arsenal", hs:2, as:2, away:"Spurs", st:"HT", comp:"PL"},
@@ -347,14 +310,16 @@
         <div class="row${r.nufc ? " nufc" : ""}">
           <div class="compChip">${comp}</div>
           <div class="team home">${r.home}</div>
+
           <div class="scoreLine">
-  <div class="scoreTop">
-    <span class="score">${r.hs}</span>
-    <span class="vs">vs</span>
-    <span class="score">${r.as}</span>
-  </div>
-  <div class="status">${r.st}</div>
-</div>
+            <div class="scoreTop">
+              <span class="score">${r.hs}</span>
+              <span class="vs">vs</span>
+              <span class="score">${r.as}</span>
+            </div>
+            <div class="status">${r.st}</div>
+          </div>
+
           <div class="team away">${r.away}</div>
         </div>
       `;
@@ -371,6 +336,7 @@
         return;
       }
 
+      // pin NUFC if present
       let pinned = null;
       const rest = [];
       for (const g of list){
@@ -416,8 +382,10 @@
       });
     }
 
+    // initial render (local)
     render(sample6);
 
+    // debug buttons (local)
     const setMode = (m) => document.body.setAttribute("data-mode", m);
     (() => { const el=document.getElementById("btnWelcome"); if(el) el.onclick = () => setMode("welcome"); })();
     (() => { const el=document.getElementById("btnLive"); if(el) el.onclick = () => setMode("live"); })();
@@ -663,7 +631,8 @@
       }
     }
 
-    setDot('clear');
+    // show dot immediately so it never "vanishes"
+    setDot('warn');
     setTimeout(tick, 500);
   </script>
 </body>
