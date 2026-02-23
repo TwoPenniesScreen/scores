@@ -549,9 +549,9 @@ const COMPS = (params.get("comps") || "PL,ELC,CL,WC,EC").split(",").map(s=>s.tri
     }
 
     function isLiveStatus(st){
-      return st === "IN_PLAY" || st === "PAUSED" || st === "LIVE";
-    }
-
+  const s = String(st || "").trim().toUpperCase();
+  return s === "IN_PLAY" || s === "PAUSED" || s === "LIVE";
+}
     function competitionPriority(comp){
       const order = ["PL","ELC","CL","WC","EC"];
       const i = order.indexOf(comp);
