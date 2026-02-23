@@ -677,7 +677,7 @@ const COMPS = (params.get("comps") || "PL,ELC,CL,WC,EC").split(",").map(s=>s.tri
 
         // If nothing qualifies, fall back to nearest upcoming today (so screen isn't empty in LIVE)
         if (mode === "live" && display.length === 0){
-          display = sorted.filter(m => m.status === "SCHEDULED").slice(0, MAX_VISIBLE);
+          display = sorted.filter(m => m.status === "SCHEDULED" || m.status === "TIMED").slice(0, MAX_VISIBLE);
         }
 
         // Render rows using existing renderer (expects objects with home/away/hs/as/st/comp/nufc)
