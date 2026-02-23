@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Two Pennies — Scores Config</title>
+  <style>
+    @font-face{
+      font-family:'TwoPenniesPlain';
+      src:url('./assets/Twopenniesplain-Regular.ttf') format('truetype');
+      font-display:swap;
+    }
+    :root{
+      --panel: rgba(0,0,0,.55);
+      --stroke: rgba(255,255,255,.18);
+      --text: rgba(255,255,255,.95);
+      --muted: rgba(255,255,255,.70);
+      --field: rgba(255,255,255,.10);
+    }
+    html,body{height:100%;}
+    body{
+      margin:0;
+      font-family: TwoPenniesPlain, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: url('./assets/bg.jpeg') center / cover no-repeat fixed;
+      color: var(--text);
+    }
+    .wrap{
+      max-width: 980px;
+      margin: 28px auto;
+      padding: 0 18px 40px;
+    }
+    .card{
+      background: var(--panel);
+      border: 1px solid var(--stroke);
+      border-radius: 20px;
+      padding: 18px 18px 14px;
+      backdrop-filter: blur(8px);
+    }
+    h1{
+      margin: 0 0 10px;
+      font-size: 28px;
+      letter-spacing: .4px;
+      font-weight: 600;
+    }
+    .sub{
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.35;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .section{
+      border: 1px solid var(--stroke);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(0,0,0,.28);
+    }
+    .section h2{
+      margin: 0 0 10px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: .3px;
+    }
+    label{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      margin: 8px 0;
+      font-size: 16px;
+    }
+    input[type="checkbox"]{ transform: scale(1.2); }
+    .row{
+      display:flex;
+      gap: 10px;
+      align-items:center;
+      margin: 10px 0;
+      flex-wrap: wrap;
+    }
+    .row .field{
+      display:flex;
+      flex-direction:column;
+      gap: 6px;
+      min-width: 160px;
+      flex: 0 1 200px;
+    }
+    .row.compact{
+      gap: 12px;
+    }
+    .row.compact .field{
+      flex: 0 0 190px;
+      min-width: 190px;
+    }
+    .row.compact .field.wide{
+      flex: 1 1 280px;
+      min-width: 220px;
+    }
+    .row .field small{ color: var(--muted); }
+    input[type="number"], input[type="text"]{
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: var(--field);
+      color: var(--text);
+      outline: none;
+      font-size: 16px;
+    }
+    input[type="number"]{ max-width: 220px; }
+    .urlbox{
+      margin-top: 14px;
+      display:flex;
+      flex-direction:column;
+      gap: 10px;
+    }
+    textarea{
+      width:100%;
+      min-height: 74px;
+      padding: 12px;
+      border-radius: 14px;
+      border: 1px solid var(--stroke);
+      background: rgba(0,0,0,.35);
+      color: var(--text);
+      font-size: 15px;
+      resize: vertical;
+      outline:none;
+    }
+    .actions{
+      display:flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    button{
+      cursor:pointer;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--stroke);
+      background: rgba(255,255,255,.10);
+      color: var(--text);
+      font-size: 15px;
+    }
+    .hint{
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .warn{
+      margin-top: 8px;
+      font-size: 14px;
+      color: rgba(255,255,255,.85);
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,170,0,.12);
+    }
+    @media (max-width: 780px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Scores screen config</h1>
+      <p class="sub">Set what you want, then copy the generated URL into AbleSign. No redeploy needed.</p>
+
+      <div class="grid">
+        <div class="section">
+          <h2>Competitions</h2>
+          <label><input type="checkbox" data-comp="PL" checked> Premier League (PL)</label>
+          <label><input type="checkbox" data-comp="ELC" checked> Championship (ELC)</label>
+          <label><input type="checkbox" data-comp="CL" checked> Champions League (CL)</label>
+          <label><input type="checkbox" data-comp="WC" checked> World Cup (WC)</label>
+          <label><input type="checkbox" data-comp="EC" checked> Euros (EC)</label>
+        </div>
+
+        <div class="section">
+          <h2>Behaviour</h2>
+          <div class="row compact">
+            <div class="field">
+              <small>Pre‑kickoff window (mins)</small>
+              <input id="preMins" type="number" min="0" max="120" value="15" />
+            </div>
+            <div class="field">
+              <small>Post‑final window (mins)</small>
+              <input id="postMins" type="number" min="0" max="240" value="15" />
+            </div>
+          </div>
+
+          <div class="row compact">
+            <div class="field">
+              <small>Max rows (visible)</small>
+              <input id="maxRows" type="number" min="1" max="8" value="5" />
+            </div>
+            <div class="field wide">
+              <small>&nbsp;</small>
+              <div style="height:44px;"></div>
+            </div>
+          </div>
+
+          <div class="row compact">
+        <div class="field">
+          <small>NUFC team ID (football-data)</small>
+          <input id="nufcId" placeholder="67" value="67">
+        </div>
+        <div class="field">
+          <small>Extra pinned team IDs (comma-separated)</small>
+          <input id="pinIds" placeholder="e.g. 770,771">
+        </div>
+      </div>
+<div class="row">
+            <div class="field">
+              <small>Find team ID (search)</small>
+              <input id="teamSearch" type="text" placeholder="Type e.g. England" />
+            </div>
+            <div class="field" style="min-width:220px;flex:0 0 220px;">
+              <small>&nbsp;</small>
+              <button id="teamSearchBtn" type="button">Search</button>
+            </div>
+          </div>
+          <div id="teamResults" style="margin-top:8px; display:none; border:1px solid var(--stroke); border-radius:14px; padding:10px; background: rgba(0,0,0,.22);"></div>
+
+          <div class="row">
+            <label style="margin-left:auto;"><input id="debugOn" type="checkbox"> Include debug</label>
+          </div>
+
+          <div class="warn" id="nufcWarn" style="display:none;">
+            NUFC ID defaults to 67 (Newcastle United). Change it if you ever need a different pinned team.
+          </div>
+        </div>
+      </div>
+
+      <div class="urlbox">
+        <textarea id="outUrl" readonly></textarea>
+        <div class="actions">
+          <button id="copyBtn">Copy URL</button>
+          <button id="openBtn">Open URL</button>
+          <button id="saveBtn">Save on this device</button>
+          <button id="loadBtn">Load saved</button>
+        </div>
+        <div class="hint">
+          Tip: for cache busting during testing, add <b>&amp;v=</b> followed by any number (e.g. timestamp) to the URL in AbleSign.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LS_KEY = "ttp_scores_config_v1";
+
+    function getBase(){
+      const { origin, pathname } = window.location;
+      // config.html is in root; live screen is index.html at root
+      return origin + "/";
+    }
+
+    function buildUrl(){
+      const comps = Array.from(document.querySelectorAll("input[type=checkbox][data-comp]:checked"))
+        .map(cb => cb.getAttribute("data-comp"))
+        .join(",");
+
+      const max = document.getElementById("maxRows").value.trim() || "5";
+      const pre = document.getElementById("preMins").value.trim() || "15";
+      const post = document.getElementById("postMins").value.trim() || "15";
+      const nufcIdRaw = document.getElementById("nufcId").value.trim();
+      const pinIdsRaw = document.getElementById("pinIds").value.trim();
+      const debug = document.getElementById("debugOn").checked;
+
+      const warn = document.getElementById("nufcWarn");
+      warn.style.display = nufcIdRaw ? "none" : "block";
+
+      const params = new URLSearchParams();
+      if (comps) params.set("comps", comps);
+      params.set("max", max);
+      params.set("pre", pre);
+      params.set("post", post);
+      if (nufcIdRaw) params.set("nufcId", nufcIdRaw.replace(/\D/g,""));
+      if (pinIdsRaw) params.set("pinIds", pinIdsRaw.replace(/[^0-9,]/g,"").replace(/,+/g,","));
+      if (debug) params.set("debug", "1");
+
+      return getBase() + "?" + params.toString();
+    }
+
+    function refresh(){
+      document.getElementById("outUrl").value = buildUrl();
+    }
+
+    function copy(){
+      const url = document.getElementById("outUrl").value;
+      navigator.clipboard.writeText(url).then(()=>{
+        const btn = document.getElementById("copyBtn");
+        const old = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(()=>btn.textContent = old, 900);
+      }).catch(()=>{
+        alert("Couldn’t copy automatically. Select + copy the URL manually.");
+      });
+    }
+
+    function save(){
+      const payload = {
+        comps: Array.from(document.querySelectorAll("input[type=checkbox][data-comp]")).map(cb => [cb.dataset.comp, cb.checked]),
+        max: document.getElementById("maxRows").value,
+        pre: document.getElementById("preMins").value,
+        post: document.getElementById("postMins").value,
+        nufcId: document.getElementById("nufcId").value,
+        pinIds: document.getElementById("pinIds").value,
+        debug: document.getElementById("debugOn").checked
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(payload));
+      const btn = document.getElementById("saveBtn");
+      const old = btn.textContent;
+      btn.textContent = "Saved";
+      setTimeout(()=>btn.textContent = old, 900);
+    }
+
+    function load(){
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      try{
+        const p = JSON.parse(raw);
+        (p.comps || []).forEach(([code, on])=>{
+          const cb = document.querySelector(`input[data-comp="${code}"]`);
+          if (cb) cb.checked = !!on;
+        });
+        if (p.max) document.getElementById("maxRows").value = p.max;
+        if (p.pre) document.getElementById("preMins").value = p.pre;
+        if (p.post) document.getElementById("postMins").value = p.post;
+        if (p.nufcId) document.getElementById("nufcId").value = p.nufcId;
+        if (p.pinIds) document.getElementById("pinIds").value = p.pinIds;
+        document.getElementById("debugOn").checked = !!p.debug;
+      }catch(e){}
+      refresh();
+    }
+
+    // wire events
+    document.querySelectorAll("input").forEach(el => el.addEventListener("input", refresh));
+    document.querySelectorAll("input[type=checkbox]").forEach(el => el.addEventListener("change", refresh));
+    document.getElementById("copyBtn").addEventListener("click", copy);
+    document.getElementById("openBtn").addEventListener("click", ()=> window.open(document.getElementById("outUrl").value, "_blank"));
+    document.getElementById("saveBtn").addEventListener("click", save);
+    document.getElementById("loadBtn").addEventListener("click", load);
+
+    async function fetchTeams(){
+      const comps = Array.from(document.querySelectorAll('input[type=checkbox][data-comp]:checked'))
+        .map(cb => cb.getAttribute('data-comp'))
+        .join(',');
+      const res = await fetch(`/.netlify/functions/teams?comps=${encodeURIComponent(comps)}`, { cache:'no-store' });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || 'Teams lookup failed');
+      return data.teams || [];
+    }
+
+    function renderTeamResults(list){
+      const box = document.getElementById('teamResults');
+      if (!list.length){ box.style.display='none'; box.innerHTML=''; return; }
+      box.style.display='block';
+      box.innerHTML = list.slice(0, 20).map(t => 
+        `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 2px; border-bottom:1px solid rgba(255,255,255,.08);">
+           <div style="opacity:.95;">${t.name}</div>
+           <button type="button" data-teamid="${t.id}" style="padding:6px 10px; border-radius:10px;">Add ${t.id}</button>
+         </div>`
+      ).join('') + (list.length>20 ? `<div style="padding-top:8px; color: rgba(255,255,255,.65);">Showing first 20 results… refine search.</div>` : '');
+
+      box.querySelectorAll('button[data-teamid]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-teamid');
+          const inp = document.getElementById('pinIds');
+          const existing = inp.value.split(',').map(s=>s.trim()).filter(Boolean);
+          if (!existing.includes(id)) existing.push(id);
+          inp.value = existing.join(',');
+          refresh();
+        });
+      });
+    }
+
+    async function doTeamSearch(){
+      const q = (document.getElementById('teamSearch').value || '').trim().toLowerCase();
+      if (!q) return renderTeamResults([]);
+      try{
+        const teams = await fetchTeams();
+        const hits = teams.filter(t => (t.name||'').toLowerCase().includes(q));
+        renderTeamResults(hits);
+      }catch(e){
+        renderTeamResults([{id:'', name: `Error: ${e.message}`}]);
+      }
+    }
+
+    document.getElementById('teamSearchBtn').addEventListener('click', doTeamSearch);
+    document.getElementById('teamSearch').addEventListener('keydown', (e)=>{
+      if (e.key === 'Enter'){ e.preventDefault(); doTeamSearch(); }
+    });
+
+    load();
+    refresh();
+  </script>
+</body>
+</html>
