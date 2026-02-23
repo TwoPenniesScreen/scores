@@ -8,10 +8,13 @@
 
   <style>
     @font-face{
-      font-family:"TwoPenniesPlain";
-      src:url("./assets/Twopenniesplain-Regular.ttf") format("truetype");
-      font-display:swap;
-    }
+  font-family:"TwoPenniesPlain";
+  src:url("./assets/Twopenniesplain-Regular.ttf") format("truetype");
+  font-display:swap;
+
+  /* Basic Latin only */
+  unicode-range: U+0000-007F;
+}
 
     :root{
       --fg: #f3f3f3;
