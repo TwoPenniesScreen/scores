@@ -98,17 +98,16 @@ function enforceMaxLength(name, max = 22){
 // ----------------------------------------------------
 
 function formatTeamName(originalName){
+
   const normalised = normaliseText(originalName);
 
-  // First try exact override BEFORE stripping
-  if (TEAM_OVERRIDES[normalised]) {
-    return enforceMaxLength(TEAM_OVERRIDES[normalised]);
-  }
-
-  // Otherwise clean + abbreviate
+  // First remove clutter
   const stripped = stripCommonWords(normalised);
 
-  return enforceMaxLength(stripped);
+  // Then try override on stripped value
+  const finalName = TEAM_OVERRIDES[stripped] || stripped;
+
+  return enforceMaxLength(finalName);
 }
 
 // ----------------------------------------------------
