@@ -28,9 +28,10 @@ function normaliseText(str){
     .trim();
 }
 
-// Remove clutter words
+// Remove clutter + abbreviations
 function stripCommonWords(str){
   return str
+    .replace(/\bSAINT\b/g, "ST")
     .replace(/\b(FC|CF|BC|FK|SK|SFP|JK|AGDAM)\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -46,9 +47,11 @@ const TEAM_OVERRIDES = {
   "BAYERN MUNCHEN": "BAYERN MUNICH",
   "BORUSSIA MONCHENGLADBACH": "MONCHENGLADBACH",
   "EINTRACHT FRANKFURT": "FRANKFURT",
+  "BAYER 04 LEVERKUSEN": "LEVERKUSEN",
 
   // Italy
   "INTERNAZIONALE": "INTER MILAN",
+  "INTERNAZIONALE MILANO": "INTER MILAN",
   "SSC NAPOLI": "NAPOLI",
 
   // France
@@ -70,18 +73,30 @@ const TEAM_OVERRIDES = {
 
   // Belgium
   "CLUB BRUGGE KV": "CLUB BRUGGE",
+  "ROYALE UNION SAINT GILLOISE": "UNION SG",
 
   // Austria
   "RED BULL SALZBURG": "SALZBURG",
 
   // Greece
-  "PAE OLYMPIAKOS": "OLYMPIAKOS"
+  "PAE OLYMPIAKOS": "OLYMPIAKOS",
+
+  // Denmark
+  "KOBENHAVN": "COPENHAGEN"
 };
+
+// ----------------------------------------------------
+// 🧱 LENGTH SAFETY
+// ----------------------------------------------------
 
 function enforceMaxLength(name, max = 22){
   if (name.length <= max) return name;
   return name.slice(0, max).trim();
 }
+
+// ----------------------------------------------------
+// 🎯 FINAL FORMATTER
+// ----------------------------------------------------
 
 function formatTeamName(originalName){
   const normalised = normaliseText(originalName);
@@ -91,6 +106,8 @@ function formatTeamName(originalName){
   return enforceMaxLength(finalName);
 }
 
+// ----------------------------------------------------
+// RESPONSE HELPER
 // ----------------------------------------------------
 
 function jsonResponse(statusCode, bodyObj) {
@@ -104,8 +121,13 @@ function jsonResponse(statusCode, bodyObj) {
   };
 }
 
+// ----------------------------------------------------
+// MAIN HANDLER
+// ----------------------------------------------------
+
 exports.handler = async (event) => {
   try {
+
     const token = process.env.FOOTBALL_DATA_TOKEN;
     if (!token) {
       return jsonResponse(500, {
@@ -137,8 +159,10 @@ exports.handler = async (event) => {
     const byId = new Map();
 
     for (const comp of compList) {
+
       const url = `${API_BASE}/competitions/${encodeURIComponent(comp)}/teams`;
       const res = await fetch(url, { headers });
+
       if (!res.ok) continue;
 
       const data = await res.json();
@@ -167,9 +191,11 @@ exports.handler = async (event) => {
     });
 
   } catch (err) {
+
     return jsonResponse(500, {
       ok:false,
       error: String(err?.message || err)
     });
+
   }
 };
