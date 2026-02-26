@@ -19,64 +19,37 @@ function normaliseText(str){
   return str
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[-./]/g, " ")
     .toUpperCase()
+    .replace(/\s+/g, " ")
     .trim();
 }
 
-// ----------------------------------------------------
-// 🇬🇧 ANGLO-STYLE TEAM NAME OVERRIDES
-// ----------------------------------------------------
+function stripCommonWords(str){
+  return str
+    .replace(/\b(FC|CF|BC|FK|SK|SFP|JK|AGDAM|MILANO)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const TEAM_OVERRIDES = {
-  // Germany
   "BAYERN MUNCHEN": "BAYERN MUNICH",
-  "BORUSSIA MONCHENGLADBACH": "MONCHENGLADBACH",
-  "EINTRACHT FRANKFURT": "FRANKFURT",
-
-  // Italy
   "INTERNAZIONALE": "INTER MILAN",
-  "AC MILAN": "MILAN",
-
-  // France
   "PARIS SAINT GERMAIN": "PSG",
-  "OLYMPIQUE MARSEILLE": "MARSEILLE",
-  "OLYMPIQUE LYONNAIS": "LYON",
-
-  // Portugal
-  "SPORTING CP": "SPORTING LISBON",
+  "SPORT LISBOA E BENFICA": "BENFICA",
   "SPORTING CLUBE DE PORTUGAL": "SPORTING LISBON",
-  "SL BENFICA": "BENFICA",
-  "FC PORTO": "PORTO",
-
-  // Netherlands
   "PSV EINDHOVEN": "PSV",
-  "AFC AJAX": "AJAX",
-
-  // Spain
-  "ATLETICO DE MADRID": "ATLETICO MADRID",
-
-  // Scotland
-  "RANGERS FC": "RANGERS",
-  "CELTIC FC": "CELTIC",
-
-  // Austria
-  "FC RED BULL SALZBURG": "SALZBURG",
-
-  // Switzerland
-  "BSC YOUNG BOYS": "YOUNG BOYS",
-
-  // Belgium
-  "CLUB BRUGGE KV": "CLUB BRUGGE",
-
-  // Turkey
-  "GALATASARAY SK": "GALATASARAY",
-  "FENERBAHCE SK": "FENERBAHCE",
-  "BESIKTAS JK": "BESIKTAS"
+  "CLUB BRUGGE": "CLUB BRUGGE",
+  "BORUSSIA MONCHENGLADBACH": "MONCHENGLADBACH",
+  "OLYMPIQUE DE MARSEILLE": "MARSEILLE",
+  "OLYMPIQUE LYONNAIS": "LYON"
 };
 
 function formatTeamName(originalName){
-  const clean = normaliseText(originalName);
-  return TEAM_OVERRIDES[clean] || clean;
+  const normalised = normaliseText(originalName);
+  const stripped = stripCommonWords(normalised);
+
+  return TEAM_OVERRIDES[stripped] || stripped;
 }
 
 // ----------------------------------------------------
