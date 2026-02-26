@@ -1,4 +1,4 @@
-/**
+ /**
  * Netlify Function: /.netlify/functions/teams
  * Returns unique team IDs+names for selected competitions.
  * Requires env var: FOOTBALL_DATA_TOKEN
