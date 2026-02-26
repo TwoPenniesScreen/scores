@@ -31,7 +31,6 @@ function normaliseText(str){
 // Remove clutter + abbreviations
 function stripCommonWords(str){
   return str
-    .replace(/\bSAINT\b/g, "ST")
     .replace(/\b(FC|CF|BC|FK|SK|SFP|JK|AGDAM)\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -100,10 +99,16 @@ function enforceMaxLength(name, max = 22){
 
 function formatTeamName(originalName){
   const normalised = normaliseText(originalName);
-  const stripped = stripCommonWords(normalised);
-  const finalName = TEAM_OVERRIDES[stripped] || stripped;
 
-  return enforceMaxLength(finalName);
+  // First try exact override BEFORE stripping
+  if (TEAM_OVERRIDES[normalised]) {
+    return enforceMaxLength(TEAM_OVERRIDES[normalised]);
+  }
+
+  // Otherwise clean + abbreviate
+  const stripped = stripCommonWords(normalised);
+
+  return enforceMaxLength(stripped);
 }
 
 // ----------------------------------------------------
