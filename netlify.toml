@@ -1,0 +1,12 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Force HTML not to be cached aggressively on signage loops
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-store"
