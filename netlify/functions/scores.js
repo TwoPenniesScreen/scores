@@ -1,5 +1,4 @@
 // Netlify Function: /.netlify/functions/scores
-// Fetches matches from football-data.org and returns a compact, front-end friendly payload.
 // IMPORTANT: set env var FOOTBALL_DATA_API_KEY in Netlify site settings.
 
 const API_BASE = "https://api.football-data.org/v4";
@@ -76,9 +75,18 @@ async function sleep(ms) {
   await new Promise(r => setTimeout(r, ms));
 }
 
+// Ensure fetch exists even on older Netlify Node
+async function getFetch() {
+  if (typeof fetch === "function") return fetch;
+  const mod = await import("node-fetch");
+  return mod.default;
+}
+
 async function fdFetch(path) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
-  const res = await fetch(`${API_BASE}${path}`, {
+  const _fetch = await getFetch();
+
+  const res = await _fetch(`${API_BASE}${path}`, {
     headers: { "X-Auth-Token": API_KEY },
   });
 
@@ -89,7 +97,7 @@ async function fdFetch(path) {
   }
   if (!res.ok) {
     const txt = await res.text().catch(()=> "");
-    throw new Error(`football-data ${res.status}: ${txt.slice(0,120)}`);
+    throw new Error(`football-data ${res.status}: ${txt.slice(0,160)}`);
   }
   return res.json();
 }
@@ -108,6 +116,7 @@ function todayRangeLondon() {
   const y = get("year"), m = get("month"), d = get("day");
   const from = `${y}-${m}-${d}`;
 
+  // tomorrow (exclusive)
   const dt = new Date(`${from}T00:00:00`);
   dt.setDate(dt.getDate() + 1);
   const to = dt.toISOString().slice(0,10);
@@ -118,7 +127,6 @@ function compactMatch(m, compOverride) {
   const comp =
     compOverride ||
     m?.competition?.code ||
-    m?.competition?.id ||
     "";
 
   return {
@@ -142,41 +150,47 @@ exports.handler = async (event) => {
 
     const key = `${from}|${to}|${comps.join(",")}`;
     const now = Date.now();
+
     if (cache.data && cache.key === key && (now - cache.ts) < CACHE_MS) {
       return json({ ok:true, cached:true, dateFrom: from, dateTo: to, competitions: comps, matches: cache.data });
     }
 
     const out = [];
+    const warnings = [];
 
-    // 1) Day listing per competition (your existing safe approach)
+    // 1) Day listing per competition
     for (const comp of comps) {
-      const data = await fdFetch(`/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${from}&dateTo=${to}`);
-      const matches = Array.isArray(data.matches) ? data.matches : [];
-      for (const m of matches) out.push(compactMatch(m, comp));
+      try {
+        const data = await fdFetch(`/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${from}&dateTo=${to}`);
+        const matches = Array.isArray(data.matches) ? data.matches : [];
+        for (const m of matches) out.push(compactMatch(m, comp));
+      } catch (e) {
+        warnings.push(`comp ${comp}: ${e.message || e}`);
+      }
     }
 
-    // 2) LIVE safety net: fetch live matches globally, then merge
-    // This protects you when the comp/day endpoints are stale or return count=0.
-    const liveData = await fdFetch(`/matches?status=IN_PLAY,PAUSED,LIVE`);
-    const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
-
-    for (const m of liveMatches) {
-      const c = String(m?.competition?.code || "").toUpperCase();
-      if (!c || !comps.includes(c)) continue;
-
-      // Only keep ones that are within today/tomorrow window (UTCDate check)
-      // from is London day start; we still just keep it loose: match utcDate starts with from (or could roll).
-      // If you want strict, we can do Date comparisons, but this is safer/simple.
-      out.push(compactMatch(m, c));
+    // 2) LIVE safety net (best effort; MUST NOT break response)
+    try {
+      const liveData = await fdFetch(`/matches?status=IN_PLAY,PAUSED,LIVE`);
+      const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
+      for (const m of liveMatches) {
+        const c = String(m?.competition?.code || "").toUpperCase();
+        if (!c || !comps.includes(c)) continue;
+        out.push(compactMatch(m, c));
+      }
+    } catch (e) {
+      warnings.push(`live endpoint: ${e.message || e}`);
     }
 
-    // 3) De-dupe by id, preferring later entries (LIVE overwrites TIMED)
+    // 3) De-dupe by id, prefer later entries (LIVE overwrites TIMED)
     const byId = new Map();
     for (const m of out) byId.set(m.id, m);
     const merged = Array.from(byId.values());
 
     cache = { ts: now, key, data: merged };
-    return json({ ok:true, cached:false, dateFrom: from, dateTo: to, competitions: comps, matches: merged });
+
+    // IMPORTANT: even if some comps fail, return what we have (don’t blank the screen)
+    return json({ ok:true, cached:false, dateFrom: from, dateTo: to, competitions: comps, matches: merged, warnings });
 
   } catch (e) {
     return json({ ok:false, error: (e && e.message) ? e.message : String(e) }, 500);
