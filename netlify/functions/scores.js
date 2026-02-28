@@ -94,10 +94,13 @@ exports.handler = async (event) => {
         group: m.group ?? null,
         homeTeam: { id: m.homeTeam?.id ?? null, name: m.homeTeam?.name ?? "" },
         awayTeam: { id: m.awayTeam?.id ?? null, name: m.awayTeam?.name ?? "" },
-        score: {
-          fullTime: m.score?.fullTime ?? { home:null, away:null },
-          halfTime: m.score?.halfTime ?? { home:null, away:null },
-        },
+       score: {
+  fullTime: m.score?.fullTime ?? { home:null, away:null },
+  halfTime: m.score?.halfTime ?? { home:null, away:null },
+  regularTime: m.score?.regularTime ?? { home:null, away:null },
+  extraTime: m.score?.extraTime ?? { home:null, away:null },
+  penalties: m.score?.penalties ?? { home:null, away:null },
+},
       }));
     };
 
