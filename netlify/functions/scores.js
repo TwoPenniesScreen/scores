@@ -74,7 +74,9 @@ function json(body, statusCode = 200, extraHeaders = {}) {
 async function sleep(ms) {
   await new Promise(r => setTimeout(r, ms));
 }
-
+function getFetch() {
+  return fetch;
+}
 async function fdFetch(path) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
   const _fetch = await getFetch();
