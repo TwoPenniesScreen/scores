@@ -5,10 +5,10 @@
 [functions]
   node_bundler = "esbuild"
 
-# Force HTML not to be cached aggressively on signage loops
+[build.environment]
+  NODE_VERSION = "18"
+
 [[headers]]
   for = "/*"
   [headers.values]
     Cache-Control = "no-store"
-[build.environment]
-  NODE_VERSION = "18"
