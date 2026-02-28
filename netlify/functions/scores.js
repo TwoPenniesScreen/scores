@@ -75,13 +75,6 @@ async function sleep(ms) {
   await new Promise(r => setTimeout(r, ms));
 }
 
-// Ensure fetch exists even on older Netlify Node
-async function getFetch() {
-  if (typeof fetch === "function") return fetch;
-  const mod = await import("node-fetch");
-  return mod.default;
-}
-
 async function fdFetch(path) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
   const _fetch = await getFetch();
