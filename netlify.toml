@@ -10,3 +10,5 @@
   for = "/*"
   [headers.values]
     Cache-Control = "no-store"
+[build.environment]
+  NODE_VERSION = "18"
