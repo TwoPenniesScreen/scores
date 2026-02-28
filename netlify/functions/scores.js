@@ -7,9 +7,7 @@ const API_KEY =
   process.env.FOOTBALL_DATA_TOKEN ||
   "";
 
-const BUILD_ID = "scores-v2026-02-28-compact-live-per-comp";
-
-// In-memory cache (warm instances only)
+// Warm-instance cache only
 let cache = { ts: 0, key: "", data: null };
 const CACHE_MS = 10_000;
 
@@ -25,13 +23,11 @@ const NAME_MAP = new Map(Object.entries({
   "Newcastle United FC": "Newcastle",
   "West Ham United FC": "West Ham",
   "Nottingham Forest FC": "Nott'm Forest",
-  "Crystal Palace FC": "Crystal Palace",
   "Queens Park Rangers FC": "QPR",
   "Sheffield Wednesday FC": "Sheff Wed",
   "Sheffield United FC": "Sheff Utd",
   "West Bromwich Albion FC": "West Brom",
   "Preston North End FC": "Preston",
-  "Millwall FC": "Millwall",
   "Leicester City FC": "Leicester",
   "Derby County FC": "Derby",
   "Swansea City AFC": "Swansea",
@@ -82,10 +78,8 @@ async function sleep(ms) {
 
 async function fdFetch(path, attempt = 0) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
-
-  // Netlify Node 18+ has global fetch
   if (typeof fetch !== "function") {
-    throw new Error("Global fetch is not available. Set NODE_VERSION=18 (or 20) on Netlify.");
+    throw new Error("Global fetch not available. Set NODE_VERSION=18 (or 20) on Netlify.");
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
@@ -101,7 +95,7 @@ async function fdFetch(path, attempt = 0) {
 
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`football-data ${res.status}: ${txt.slice(0, 160)}`);
+    throw new Error(`football-data ${res.status}: ${txt.slice(0, 200)}`);
   }
 
   return res.json();
@@ -113,7 +107,6 @@ function getComps(event) {
 }
 
 function todayRangeLondon() {
-  // London "today" in YYYY-MM-DD
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year: "numeric",
@@ -125,9 +118,9 @@ function todayRangeLondon() {
   const y = get("year"), m = get("month"), d = get("day");
   const from = `${y}-${m}-${d}`;
 
-  // tomorrow (exclusive) — use UTC-safe add
-  const dt = new Date(`${from}T00:00:00Z`);
-  dt.setUTCDate(dt.getUTCDate() + 1);
+  // tomorrow (exclusive)
+  const dt = new Date(`${from}T00:00:00`);
+  dt.setDate(dt.getDate() + 1);
   const to = dt.toISOString().slice(0, 10);
 
   return { from, to };
@@ -154,31 +147,20 @@ exports.handler = async (event) => {
     const comps = getComps(event);
     const { from, to } = todayRangeLondon();
 
-    const key = `${from}|${to}|${comps.join(",")}`;
+    const cacheKey = `${from}|${to}|${comps.join(",")}`;
     const now = Date.now();
 
-    if (cache.data && cache.key === key && (now - cache.ts) < CACHE_MS) {
-      return json({
-        ok: true,
-        cached: true,
-        build: BUILD_ID,
-        dateFrom: from,
-        dateTo: to,
-        competitions: comps,
-        matches: cache.data,
-        warnings: [],
-      });
+    if (cache.data && cache.key === cacheKey && (now - cache.ts) < CACHE_MS) {
+      return json({ ok: true, cached: true, dateFrom: from, dateTo: to, competitions: comps, matches: cache.data, warnings: [] });
     }
 
     const out = [];
     const warnings = [];
 
-    // 1) Day listing per competition (pre/live/finished all included as the API provides)
+    // 1) Day listing per competition (your main, reliable list)
     for (const comp of comps) {
       try {
-        const data = await fdFetch(
-          `/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${encodeURIComponent(from)}&dateTo=${encodeURIComponent(to)}`
-        );
+        const data = await fdFetch(`/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${from}&dateTo=${to}`);
         const matches = Array.isArray(data.matches) ? data.matches : [];
         for (const m of matches) out.push(compactMatch(m, comp));
       } catch (e) {
@@ -186,39 +168,30 @@ exports.handler = async (event) => {
       }
     }
 
-    // 2) LIVE/HT override per competition (this is the important fix)
-    // This avoids the flaky global /matches endpoint entirely.
-    for (const comp of comps) {
-      try {
-        const liveData = await fdFetch(
-          `/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${encodeURIComponent(from)}&dateTo=${encodeURIComponent(to)}&status=IN_PLAY,PAUSED`
-        );
-        const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
-        for (const m of liveMatches) out.push(compactMatch(m, comp)); // overwrites by id below
-      } catch (e) {
-        // Don’t fail the whole response if live filter isn’t allowed on your plan
-        warnings.push(`live ${comp}: ${e.message || e}`);
+    // 2) LIVE safety net (build query so it can NEVER become ?status=a&status=b)
+    try {
+      const qs = new URLSearchParams();
+      qs.set("status", "IN_PLAY,PAUSED"); // <-- exactly one status param
+      const liveData = await fdFetch(`/matches?${qs.toString()}`);
+
+      const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
+      for (const m of liveMatches) {
+        const c = String(m?.competition?.code || "").toUpperCase();
+        if (!c || !comps.includes(c)) continue;
+        out.push(compactMatch(m, c));
       }
+    } catch (e) {
+      warnings.push(`live endpoint: ${e.message || e}`);
     }
 
-    // 3) De-dupe by id (later overwrites earlier -> live entries win)
+    // 3) De-dupe by id (live overwrites timed)
     const byId = new Map();
     for (const m of out) byId.set(m.id, m);
     const merged = Array.from(byId.values());
 
-    cache = { ts: now, key, data: merged };
-
-    return json({
-      ok: true,
-      cached: false,
-      build: BUILD_ID,
-      dateFrom: from,
-      dateTo: to,
-      competitions: comps,
-      matches: merged,
-      warnings,
-    });
+    cache = { ts: now, key: cacheKey, data: merged };
+    return json({ ok: true, cached: false, dateFrom: from, dateTo: to, competitions: comps, matches: merged, warnings });
   } catch (e) {
-    return json({ ok: false, error: (e && e.message) ? e.message : String(e), build: BUILD_ID }, 500);
+    return json({ ok: false, error: e?.message ? e.message : String(e) }, 500);
   }
 };
