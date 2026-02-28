@@ -1,14 +1,17 @@
 // Netlify Function: /.netlify/functions/scores
-// IMPORTANT: set env var FOOTBALL_DATA_API_KEY in Netlify site settings.
+// IMPORTANT: set env var FOOTBALL_DATA_API_KEY (or FOOTBALL_DATA_TOKEN) in Netlify.
 
 const API_BASE = "https://api.football-data.org/v4";
-const API_KEY = process.env.FOOTBALL_DATA_API_KEY || process.env.FOOTBALL_DATA_TOKEN || "";
+const API_KEY =
+  process.env.FOOTBALL_DATA_API_KEY ||
+  process.env.FOOTBALL_DATA_TOKEN ||
+  "";
 
-// In-memory cache (works on warm instances; safe fallback if cold)
+// In-memory cache (warm instances only)
 let cache = { ts: 0, key: "", data: null };
-const CACHE_MS = 10_000; // 10s
+const CACHE_MS = 10_000;
 
-// Small UK-friendly name map (extend as needed)
+// UK-friendly name map
 const NAME_MAP = new Map(Object.entries({
   "AFC Bournemouth": "Bournemouth",
   "Manchester United FC": "Man Utd",
@@ -75,22 +78,18 @@ async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function getFetch() {
-  if (typeof fetch !== "function") {
-    throw new Error("Global fetch is not available. Set NODE_VERSION=18 (or 20) on Netlify.");
-  }
-  return fetch;
-}
-
 async function fdFetch(path, attempt = 0) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
 
-  const _fetch = getFetch();
-  const res = await _fetch(`${API_BASE}${path}`, {
+  // Node 18+ (Netlify) has global fetch
+  if (typeof fetch !== "function") {
+    throw new Error("Global fetch is not available. Set NODE_VERSION=18 (or 20) on Netlify.");
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, {
     headers: { "X-Auth-Token": API_KEY },
   });
 
-  // Handle rate limiting with a capped retry
   if (res.status === 429) {
     if (attempt >= 3) throw new Error("football-data 429: rate limited (max retries hit)");
     const retry = parseInt(res.headers.get("retry-after") || "6", 10);
@@ -116,6 +115,7 @@ function todayRangeLondon() {
     timeZone: "Europe/London",
     year:"numeric", month:"2-digit", day:"2-digit"
   }).formatToParts(new Date());
+
   const get = (t)=> parts.find(p=>p.type===t)?.value || "01";
   const y = get("year"), m = get("month"), d = get("day");
   const from = `${y}-${m}-${d}`;
@@ -124,14 +124,12 @@ function todayRangeLondon() {
   const dt = new Date(`${from}T00:00:00`);
   dt.setDate(dt.getDate() + 1);
   const to = dt.toISOString().slice(0,10);
+
   return { from, to };
 }
 
 function compactMatch(m, compOverride) {
-  const comp =
-    compOverride ||
-    m?.competition?.code ||
-    "";
+  const comp = compOverride || m?.competition?.code || "";
 
   return {
     id: m.id,
@@ -156,7 +154,7 @@ exports.handler = async (event) => {
     const now = Date.now();
 
     if (cache.data && cache.key === key && (now - cache.ts) < CACHE_MS) {
-      return json({ ok:true, cached:true, dateFrom: from, dateTo: to, competitions: comps, matches: cache.data });
+      return json({ ok:true, cached:true, dateFrom: from, dateTo: to, competitions: comps, matches: cache.data, warnings: [] });
     }
 
     const out = [];
@@ -173,29 +171,26 @@ exports.handler = async (event) => {
       }
     }
 
-    // 2) LIVE safety net (best effort; MUST NOT break response)
-try {
-  const liveData = await fdFetch(`/matches?status=IN_PLAY,PAUSED`);
-  const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
-  for (const m of liveMatches) {
-    const c = String(m?.competition?.code || "").toUpperCase();
-    if (!c || !comps.includes(c)) continue;
-    out.push(compactMatch(m, c));
-  }
-} catch (e) {
-  warnings.push(`live endpoint: ${e.message || e}`);
-}
+    // 2) LIVE safety net (best-effort)
+    try {
+      const liveData = await fdFetch(`/matches?status=IN_PLAY,PAUSED`);
+      const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
+      for (const m of liveMatches) {
+        const c = String(m?.competition?.code || "").toUpperCase();
+        if (!c || !comps.includes(c)) continue;
+        out.push(compactMatch(m, c));
+      }
+    } catch (e) {
+      warnings.push(`live endpoint: ${e.message || e}`);
+    }
 
-    // 3) De-dupe by id, prefer later entries (LIVE overwrites TIMED)
+    // 3) De-dupe by id (later overwrites earlier)
     const byId = new Map();
     for (const m of out) byId.set(m.id, m);
     const merged = Array.from(byId.values());
 
     cache = { ts: now, key, data: merged };
-
-    // IMPORTANT: even if some comps fail, return what we have (don’t blank the screen)
     return json({ ok:true, cached:false, dateFrom: from, dateTo: to, competitions: comps, matches: merged, warnings });
-
   } catch (e) {
     return json({ ok:false, error: (e && e.message) ? e.message : String(e) }, 500);
   }
