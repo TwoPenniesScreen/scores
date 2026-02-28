@@ -17,7 +17,7 @@ const DEFAULT_COMPS = ["PL","ELC","CL","WC","EC"];
 
 // in-memory cache to reduce API calls
 const cache = new Map(); // key -> {ts, data}
-const TTL_MS = 25_000;
+const TTL_MS = 5_000;
 
 function jsonResponse(statusCode, bodyObj, extraHeaders = {}) {
   return {
