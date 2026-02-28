@@ -503,32 +503,51 @@
 
     // IMPORTANT: football-data v4 uses score.fullTime as the running score once IN_PLAY.  [oai_citation:2‡docs.football-data.org](https://docs.football-data.org/general/v4/overtime.html?utm_source=chatgpt.com)
     function scoresFor(match){
-      const score = match.score || {};
-      const ft = score.fullTime || {};
-      const rt = score.regularTime || {};
-      const ht = score.halfTime || {};
+  const score = match.score || {};
+  const ft = score.fullTime || {};
+  const rt = score.regularTime || {};
+  const ht = score.halfTime || {};
 
-      // Prefer FT as running score; fall back if still null
-      let hs = (ft.home ?? null);
-      let as = (ft.away ?? null);
+  const st = String(match.status || "").toUpperCase();
 
-      if (hs === null && as === null){
-        hs = (rt.home ?? ht.home ?? null);
-        as = (rt.away ?? ht.away ?? null);
+  // Helper: "is this pair actually populated?"
+  const pair = (obj) => ({ h: obj.home ?? null, a: obj.away ?? null });
+  const has = (p) => (p.h !== null || p.a !== null);
+
+  const FT = pair(ft);
+  const RT = pair(rt);
+  const HT = pair(ht);
+
+  // 1) FINISHED: always use fullTime
+  if (st === "FINISHED" && has(FT)) {
+    return { home: String(FT.h ?? ""), away: String(FT.a ?? "") };
+  }
+
+  // 2) LIVE-ish: prefer regularTime if it exists, else fullTime, else halfTime
+  let best = null;
+  if (isLiveStatus(st) || match.__probablyLive) {
+    if (has(RT)) best = RT;
+    else if (has(FT)) best = FT;
+    else if (has(HT)) best = HT;
+
+    // Grace fallback: only show 0–0 very near kickoff if absolutely nothing is provided yet
+    if (!best) {
+      const now = londonNow();
+      const minsSinceKO = match.__kick ? (now.getTime() - match.__kick.getTime()) / 60000 : 999;
+      if (minsSinceKO >= 0 && minsSinceKO <= 8) { // <= 8 minutes after KO
+        best = { h: 0, a: 0 };
       }
-
-      // If live-ish but API still null, show 0–0 instead of blanks
-      const liveish = isLiveStatus(match.status) || !!match.__probablyLive;
-      if (liveish && hs === null && as === null){
-        hs = 0; as = 0;
-      }
-
-      return {
-        home: (hs === null ? "" : String(hs)),
-        away: (as === null ? "" : String(as)),
-      };
     }
+  } else {
+    // 3) Not live: show nothing (scheduled/timed)
+    best = null;
+  }
 
+  return {
+    home: best ? String(best.h ?? "") : "",
+    away: best ? String(best.a ?? "") : "",
+  };
+}
     function competitionPriority(comp){
       const order = ["PL","ELC","CL","WC","EC"];
       const i = order.indexOf(comp);
