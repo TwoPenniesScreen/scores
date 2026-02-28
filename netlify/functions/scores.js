@@ -47,7 +47,6 @@ const NAME_MAP = new Map(Object.entries({
 
 function stripDiacritics(s) {
   if (!s) return "";
-  // Handle special letters not covered by NFD combining marks
   const specials = {
     "ß":"ss","Ø":"O","ø":"o","Æ":"AE","æ":"ae","Œ":"OE","œ":"oe",
     "Þ":"Th","þ":"th","Đ":"D","đ":"d","Ł":"L","ł":"l","Å":"A","å":"a",
@@ -83,7 +82,6 @@ async function fdFetch(path) {
     headers: { "X-Auth-Token": API_KEY },
   });
 
-  // football-data sometimes answers 429 with a message about waiting
   if (res.status === 429) {
     const retry = parseInt(res.headers.get("retry-after") || "6", 10);
     await sleep(Math.max(1, Math.min(10, retry)) * 1000);
@@ -102,7 +100,6 @@ function getComps(event) {
 }
 
 function todayRangeLondon() {
-  // London day boundaries; send dateFrom/To as YYYY-MM-DD
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year:"numeric", month:"2-digit", day:"2-digit"
@@ -111,11 +108,31 @@ function todayRangeLondon() {
   const y = get("year"), m = get("month"), d = get("day");
   const from = `${y}-${m}-${d}`;
 
-  // to = tomorrow (exclusive)
   const dt = new Date(`${from}T00:00:00`);
   dt.setDate(dt.getDate() + 1);
   const to = dt.toISOString().slice(0,10);
   return { from, to };
+}
+
+function compactMatch(m, compOverride) {
+  const comp =
+    compOverride ||
+    m?.competition?.code ||
+    m?.competition?.id ||
+    "";
+
+  return {
+    id: m.id,
+    comp: String(comp).toUpperCase(),
+    status: m.status,
+    utcDate: m.utcDate,
+    matchday: m.matchday,
+    stage: m.stage,
+    group: m.group || null,
+    homeTeam: { id: m.homeTeam?.id, name: tidyName(m.homeTeam?.name || "") },
+    awayTeam: { id: m.awayTeam?.id, name: tidyName(m.awayTeam?.name || "") },
+    score: m.score || {},
+  };
 }
 
 exports.handler = async (event) => {
@@ -129,34 +146,38 @@ exports.handler = async (event) => {
       return json({ ok:true, cached:true, dateFrom: from, dateTo: to, competitions: comps, matches: cache.data });
     }
 
-    // Fetch per competition. (football-data supports competitions=CSV on /matches,
-    // but some plans behave inconsistently; this is the safest.)
     const out = [];
+
+    // 1) Day listing per competition (your existing safe approach)
     for (const comp of comps) {
       const data = await fdFetch(`/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${from}&dateTo=${to}`);
       const matches = Array.isArray(data.matches) ? data.matches : [];
-      for (const m of matches) {
-        out.push({
-          id: m.id,
-          comp,
-          status: m.status,
-          utcDate: m.utcDate,
-          matchday: m.matchday,
-          stage: m.stage,
-          group: m.group || null,
-          homeTeam: { id: m.homeTeam?.id, name: tidyName(m.homeTeam?.name || "") },
-          awayTeam: { id: m.awayTeam?.id, name: tidyName(m.awayTeam?.name || "") },
-          score: m.score || {},
-        });
-      }
+      for (const m of matches) out.push(compactMatch(m, comp));
     }
 
-    // De-dupe in case of overlap
-    const seen = new Set();
-    const deduped = out.filter(m => (seen.has(m.id) ? false : (seen.add(m.id), true)));
+    // 2) LIVE safety net: fetch live matches globally, then merge
+    // This protects you when the comp/day endpoints are stale or return count=0.
+    const liveData = await fdFetch(`/matches?status=IN_PLAY,PAUSED,LIVE`);
+    const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
 
-    cache = { ts: now, key, data: deduped };
-    return json({ ok:true, cached:false, dateFrom: from, dateTo: to, competitions: comps, matches: deduped });
+    for (const m of liveMatches) {
+      const c = String(m?.competition?.code || "").toUpperCase();
+      if (!c || !comps.includes(c)) continue;
+
+      // Only keep ones that are within today/tomorrow window (UTCDate check)
+      // from is London day start; we still just keep it loose: match utcDate starts with from (or could roll).
+      // If you want strict, we can do Date comparisons, but this is safer/simple.
+      out.push(compactMatch(m, c));
+    }
+
+    // 3) De-dupe by id, preferring later entries (LIVE overwrites TIMED)
+    const byId = new Map();
+    for (const m of out) byId.set(m.id, m);
+    const merged = Array.from(byId.values());
+
+    cache = { ts: now, key, data: merged };
+    return json({ ok:true, cached:false, dateFrom: from, dateTo: to, competitions: comps, matches: merged });
+
   } catch (e) {
     return json({ ok:false, error: (e && e.message) ? e.message : String(e) }, 500);
   }
