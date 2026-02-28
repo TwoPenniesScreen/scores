@@ -72,29 +72,37 @@ function json(body, statusCode = 200, extraHeaders = {}) {
 }
 
 async function sleep(ms) {
-  await new Promise(r => setTimeout(r, ms));
+  return new Promise((r) => setTimeout(r, ms));
 }
+
 function getFetch() {
+  if (typeof fetch !== "function") {
+    throw new Error("Global fetch is not available. Set NODE_VERSION=18 (or 20) on Netlify.");
+  }
   return fetch;
 }
 
-async function fdFetch(path) {
+async function fdFetch(path, attempt = 0) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
-  const _fetch = getFetch();
 
+  const _fetch = getFetch();
   const res = await _fetch(`${API_BASE}${path}`, {
     headers: { "X-Auth-Token": API_KEY },
   });
 
+  // Handle rate limiting with a capped retry
   if (res.status === 429) {
+    if (attempt >= 3) throw new Error("football-data 429: rate limited (max retries hit)");
     const retry = parseInt(res.headers.get("retry-after") || "6", 10);
     await sleep(Math.max(1, Math.min(10, retry)) * 1000);
-    return fdFetch(path);
+    return fdFetch(path, attempt + 1);
   }
+
   if (!res.ok) {
-    const txt = await res.text().catch(()=> "");
-    throw new Error(`football-data ${res.status}: ${txt.slice(0,160)}`);
+    const txt = await res.text().catch(() => "");
+    throw new Error(`football-data ${res.status}: ${txt.slice(0, 160)}`);
   }
+
   return res.json();
 }
 
