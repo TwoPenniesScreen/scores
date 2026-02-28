@@ -167,7 +167,7 @@ exports.handler = async (event) => {
 
     // 2) LIVE safety net (best effort; MUST NOT break response)
 try {
-  const liveData = await fdFetch(`/matches?status=IN_PLAY&status=PAUSED`);
+  const liveData = await fdFetch(`/matches?status=IN_PLAY,PAUSED`);
   const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
   for (const m of liveMatches) {
     const c = String(m?.competition?.code || "").toUpperCase();
