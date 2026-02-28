@@ -1,6 +1,8 @@
-// Compatibility alias: /.netlify/functions/teams
-// Returns same payload as scores so old URLs don't break.
+// Netlify Function: /.netlify/functions/teams
+// Compatibility alias: returns same as /scores
+
+const scores = require("./scores.js");
+
 exports.handler = async (event, context) => {
-  const scores = require("./scores.js");
   return scores.handler(event, context);
 };
