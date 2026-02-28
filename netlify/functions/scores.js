@@ -9,7 +9,7 @@ const API_KEY =
 
 // Warm-instance cache only
 let cache = { ts: 0, key: "", data: null };
-const CACHE_MS = 10_000;
+const CACHE_MS = 60_000;
 
 // UK-friendly name map
 const NAME_MAP = new Map(Object.entries({
@@ -166,22 +166,6 @@ exports.handler = async (event) => {
       } catch (e) {
         warnings.push(`comp ${comp}: ${e.message || e}`);
       }
-    }
-
-    // 2) LIVE safety net (build query so it can NEVER become ?status=a&status=b)
-    try {
-      const qs = new URLSearchParams();
-      qs.set("status", "IN_PLAY,PAUSED"); // <-- exactly one status param
-      const liveData = await fdFetch(`/matches?${qs.toString()}`);
-
-      const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
-      for (const m of liveMatches) {
-        const c = String(m?.competition?.code || "").toUpperCase();
-        if (!c || !comps.includes(c)) continue;
-        out.push(compactMatch(m, c));
-      }
-    } catch (e) {
-      warnings.push(`live endpoint: ${e.message || e}`);
     }
 
     // 3) De-dupe by id (live overwrites timed)
