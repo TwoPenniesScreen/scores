@@ -481,12 +481,36 @@
     }
 
     function scoresFor(match){
-      const ft = match.score?.fullTime || {home:null,away:null};
-      const ht = match.score?.halfTime || {home:null,away:null};
-      const hs = (ft.home ?? ht.home ?? null);
-      const as = (ft.away ?? ht.away ?? null);
-      return { home: (hs === null ? "" : String(hs)), away: (as === null ? "" : String(as)) };
-    }
+  const score = match.score || {};
+  const ft = score.fullTime || {};
+  const rt = score.regularTime || {};   // some feeds use this
+  const ht = score.halfTime || {};
+
+  const pickHome = (o) => (o?.home ?? o?.homeTeam ?? o?.homeScore ?? null);
+  const pickAway = (o) => (o?.away ?? o?.awayTeam ?? o?.awayScore ?? null);
+
+  let hs = pickHome(ft);
+  let as = pickAway(ft);
+
+  if (hs === null && as === null){
+    hs = pickHome(rt);
+    as = pickAway(rt);
+  }
+  if (hs === null && as === null){
+    hs = pickHome(ht);
+    as = pickAway(ht);
+  }
+
+  // If match is live but the API still hasn't populated scores yet, show 0–0 rather than blanks
+  if (isLiveStatus(match.status) && hs === null && as === null){
+    hs = 0; as = 0;
+  }
+
+  return {
+    home: (hs === null ? "" : String(hs)),
+    away: (as === null ? "" : String(as)),
+  };
+}
 
     function isLiveStatus(st){
       const s = String(st || "").trim().toUpperCase();
