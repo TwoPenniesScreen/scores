@@ -77,6 +77,7 @@ async function sleep(ms) {
 function getFetch() {
   return fetch;
 }
+
 async function fdFetch(path) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
   const _fetch = getFetch();
@@ -165,17 +166,17 @@ exports.handler = async (event) => {
     }
 
     // 2) LIVE safety net (best effort; MUST NOT break response)
-    try {
-      const liveData = await fdFetch(`/matches?status=IN_PLAY,PAUSED,LIVE`);
-      const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
-      for (const m of liveMatches) {
-        const c = String(m?.competition?.code || "").toUpperCase();
-        if (!c || !comps.includes(c)) continue;
-        out.push(compactMatch(m, c));
-      }
-    } catch (e) {
-      warnings.push(`live endpoint: ${e.message || e}`);
-    }
+try {
+  const liveData = await fdFetch(`/matches?status=IN_PLAY&status=PAUSED`);
+  const liveMatches = Array.isArray(liveData.matches) ? liveData.matches : [];
+  for (const m of liveMatches) {
+    const c = String(m?.competition?.code || "").toUpperCase();
+    if (!c || !comps.includes(c)) continue;
+    out.push(compactMatch(m, c));
+  }
+} catch (e) {
+  warnings.push(`live endpoint: ${e.message || e}`);
+}
 
     // 3) De-dupe by id, prefer later entries (LIVE overwrites TIMED)
     const byId = new Map();
