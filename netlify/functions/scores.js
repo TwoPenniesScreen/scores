@@ -151,6 +151,7 @@ function todayRangeLondon() {
 
 function compactMatch(m, compOverride) {
   const comp = compOverride || m?.competition?.code || "";
+
   return {
     id: m.id,
     comp: String(comp).toUpperCase(),
@@ -159,9 +160,22 @@ function compactMatch(m, compOverride) {
     matchday: m.matchday,
     stage: m.stage,
     group: m.group || null,
-    homeTeam: { id: m.homeTeam?.id, name: tidyName(m.homeTeam?.name || "") },
-    awayTeam: { id: m.awayTeam?.id, name: tidyName(m.awayTeam?.name || "") },
+
+    homeTeam: {
+      id: m.homeTeam?.id,
+      name: tidyName(m.homeTeam?.name || "")
+    },
+
+    awayTeam: {
+      id: m.awayTeam?.id,
+      name: tidyName(m.awayTeam?.name || "")
+    },
+
     score: m.score || {},
+
+    // NEW — pass match clock to front-end
+    minute: m.minute ?? null,
+    injuryTime: m.injuryTime ?? null
   };
 }
 
