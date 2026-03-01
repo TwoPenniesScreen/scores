@@ -705,9 +705,60 @@
           }).format(now);
         }
 
+                  dbgLastPollEl.textContent = new Intl.DateTimeFormat('en-GB',{
+            timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'
+          }).format(now);
+        }
+
         const matches = await fetchMatches();
+        const now = londonNow(); // keep one "now" for everything
+
+const PRE_MIN  = Math.max(0, Math.min(2880, parseInt(params.get("pre")  || "30", 10)));
+const POST_MIN = Math.max(0, Math.min(240,  parseInt(params.get("post") || "45", 10)));
+
+function isLiveStatus(st){
+  const s = String(st || "").toUpperCase();
+  return s === "IN_PLAY" || s === "PAUSED" || s === "LIVE";
+}
+
+function minutesBetween(a, b){
+  return (b.getTime() - a.getTime()) / 60000;
+}
+
+function parseUtc(utcStr){
+  const d = new Date(utcStr);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// attach kick times once so filtering is consistent
+const annotated = matches.map(m => {
+  const kick = parseUtc(m.utcDate) || new Date(0);
+  return { ...m, __kick: kick };
+});
+
+// Filter: live OR within pre window OR within post window
+const display = annotated.filter(m => {
+  const st = String(m.status || "").toUpperCase();
+
+  if (isLiveStatus(st)) return true;
+
+  if (st === "SCHEDULED" || st === "TIMED") {
+    const minsToKO = minutesBetween(now, m.__kick);
+    return minsToKO >= 0 && minsToKO <= PRE_MIN;
+  }
+
+  if (st === "FINISHED") {
+    // show for POST_MIN after estimated end (KO + 105 mins)
+    const estEnd = new Date(m.__kick.getTime() + 105 * 60000);
+    const minsAfter = minutesBetween(estEnd, now);
+    return minsAfter >= 0 && minsAfter <= POST_MIN;
+  }
+
+  return false;
+});
         const sorted = pinAndSort(matches);
         const mode = decideMode(sorted, now);
+
 
         document.body.setAttribute("data-mode", mode);
         if (DEBUG && dbgModeEl) dbgModeEl.textContent = mode.toUpperCase();
