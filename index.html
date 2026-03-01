@@ -337,36 +337,37 @@
       const s = String(st || "").trim().toUpperCase();
       return s === "IN_PLAY" || s === "PAUSED" || s === "LIVE";
     }
-
-   function statusLabel(match){
+function statusLabel(match){
   const st = String(match.status || "").toUpperCase();
 
-  // ✅ show minutes when live
   if (st === "IN_PLAY" || st === "LIVE") {
-    const min = Number(match.minute);
-    const it = Number(match.injuryTime);
-    if (Number.isFinite(min)) {
-      if (Number.isFinite(it) && it > 0) return `${min}+${it}'`;
-      return `${min}'`;
+    // ✅ Only use the clock if minute exists (not null/undefined/"")
+    const hasMinute =
+      match.minute !== null &&
+      match.minute !== undefined &&
+      match.minute !== "";
+
+    if (hasMinute) {
+      const min = Number(match.minute);
+      const it  = Number(match.injuryTime);
+
+      if (Number.isFinite(min) && min > 0) {
+        if (Number.isFinite(it) && it > 0) return `${min}+${it}'`;
+        return `${min}'`;
+      }
+
+      // minute is present but 0 (kickoff edge) — show LIVE instead
+      return "LIVE";
     }
-    return "LIVE"; // fallback if API didn't include minute
+
+    // minute not provided — fallback
+    return "LIVE";
   }
 
   if (st === "PAUSED") return "HT";
   if (st === "FINISHED") {
-    if (match.score?.duration === "PENALTY_SHOOTOUT") return "PEN"; // optional
+    if (match.score?.duration === "PENALTY_SHOOTOUT") return "PEN";
     return "FT";
-  }
-
-  if (st === "SCHEDULED" || st === "TIMED") {
-    const d = parseUtc(match.utcDate);
-    if (!d) return "KO";
-    const fmt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/London",
-      hour:"2-digit",
-      minute:"2-digit"
-    });
-    return fmt.format(d);
   }
 
   return st;
