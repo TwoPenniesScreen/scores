@@ -28,7 +28,6 @@
     body{
       font-family: TwoPenniesPlain, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       color: var(--fg);
-      /* optional (safe): because your font has no lowercase */
       text-transform: uppercase;
     }
 
@@ -146,7 +145,6 @@
     .team.home{ text-align:right; padding-right: 6px; grid-column:1; }
     .team.away{ text-align:left;  padding-left: 6px; grid-column:3; }
 
-    /* Center axis */
     .scoreLine{
       grid-column:2;
       display:flex;
@@ -156,7 +154,7 @@
 
     .scoreTop{
       display:grid;
-      grid-template-columns: 54px 54px 54px;  /* left score / vs / right score */
+      grid-template-columns: 54px 54px 54px;
       align-items: baseline;
       justify-items: center;
       line-height: 1;
@@ -183,7 +181,7 @@
 
     .status{
       margin-top: 6px;
-      width: 162px; /* lock to scoreTop width */
+      width: 162px;
       text-align: center;
       display:flex;
       align-items:center;
@@ -195,13 +193,11 @@
       font-feature-settings: 'tnum' 1;
     }
 
-    /* Optional tiny score-change pop (harmless if you don't notice it) */
     .score.updated{
       transform: translateY(-1px);
       filter: drop-shadow(0 2px 6px rgba(255,255,255,.18));
     }
 
-    /* Debug */
     .debug{
       position:fixed;
       top: 90px;
@@ -481,25 +477,19 @@
      * 2) POLLING + BUSINESS RULES
      *****************************************************************/
 
-    // URL overrides
-    (function(){
-      const params = new URLSearchParams(window.location.search);
-      const mode = (params.get('mode') || '').toLowerCase();
-      if (mode === 'live') document.body.setAttribute('data-mode','live');
-      if (mode === 'welcome') document.body.setAttribute('data-mode','welcome');
-    })();
-
-    // Debug controls / settings
     const params = new URLSearchParams(window.location.search);
     const DEBUG = params.get("debug") === "1";
     const forcedMode = (params.get("mode") || "").toLowerCase();
 
     const MAX_VISIBLE = Math.max(1, Math.min(8, parseInt(params.get("max") || "5", 10)));
-    const PRE_MIN = Math.max(0, Math.min(2880, parseInt(params.get("pre") || "60", 10)));   // default 60 mins pre
-    const POST_MIN = Math.max(0, Math.min(720, parseInt(params.get("post") || "120", 10))); // default 120 mins post
-    const NUFC_ID = parseInt(params.get("nufcId") || "67", 10); // default NUFC team id = 67
+    const PRE_MIN = Math.max(0, Math.min(2880, parseInt(params.get("pre") || "60", 10)));
+    const POST_MIN = Math.max(0, Math.min(720, parseInt(params.get("post") || "120", 10)));
+    const NUFC_ID = parseInt(params.get("nufcId") || "67", 10);
 
     window.__MAX_VISIBLE = MAX_VISIBLE;
+
+    const COMPS = (params.get("comps") || "PL,CL,EC,WC")
+      .split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
 
     const statusDot = document.getElementById("statusDot");
     function setDot(state){
@@ -512,8 +502,8 @@
 
     const debugStatus = document.getElementById("debugStatus");
     const debugPanel = document.querySelector(".debug");
-    if (debugStatus) debugStatus.style.display = DEBUG ? "block" : "none";
     if (debugPanel) debugPanel.style.display = DEBUG ? "flex" : "none";
+    if (debugStatus) debugStatus.style.display = DEBUG ? "block" : "none";
 
     const dbgModeEl = document.getElementById("dbgMode");
     const dbgLastPollEl = document.getElementById("dbgLastPoll");
@@ -531,22 +521,17 @@
     (() => { const el=document.getElementById("btnWelcome"); if(el) el.onclick = () => setMode("welcome"); })();
     (() => { const el=document.getElementById("btnLive"); if(el) el.onclick = () => setMode("live"); })();
 
-    // local demo buttons
     const sample6 = [
-      {id:1, home:"Newcastle", hs:1, as:0, away:"Aston Villa", st:"63'", nufc:true, comp:"PL"},
+      {id:1, home:"Newcastle", hs:1, as:0, away:"Aston Villa", st:"LIVE", nufc:true, comp:"PL"},
       {id:2, home:"Arsenal", hs:2, as:2, away:"Spurs", st:"HT", comp:"PL"},
-      {id:3, home:"Man City", hs:0, as:0, away:"Chelsea", st:"41'", comp:"PL"},
+      {id:3, home:"Man City", hs:0, as:0, away:"Chelsea", st:"LIVE", comp:"PL"},
       {id:4, home:"Brighton", hs:1, as:2, away:"Wolves", st:"FT", comp:"PL"},
-      {id:5, home:"Everton", hs:0, as:1, away:"Fulham", st:"78'", comp:"PL"},
-      {id:6, home:"West Ham", hs:1, as:3, away:"Liverpool", st:"90+2'", comp:"PL"}
+      {id:5, home:"Everton", hs:0, as:1, away:"Fulham", st:"LIVE", comp:"PL"},
+      {id:6, home:"West Ham", hs:1, as:3, away:"Liverpool", st:"LIVE", comp:"PL"}
     ];
     const sample3 = sample6.slice(0,3);
     (() => { const el=document.getElementById("btnMany"); if(el) el.onclick = () => render(sample6); })();
     (() => { const el=document.getElementById("btnFew"); if(el) el.onclick = () => render(sample3); })();
-
-    // competitions list (codes expected from your Netlify function)
-    const COMPS = (params.get("comps") || "PL,CL,EC,WC")
-      .split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
 
     if (DEBUG){
       if (dbgRowsEl) dbgRowsEl.textContent = String(MAX_VISIBLE);
@@ -554,15 +539,17 @@
     }
 
     function londonNow(){
-      return new Date(new Intl.DateTimeFormat("en-US", {
+      // robust London time without fiddly string parsing bugs
+      const fmt = new Intl.DateTimeFormat("en-GB", {
         timeZone: "Europe/London",
-        hour12:false,
-        year:"numeric", month:"2-digit", day:"2-digit",
-        hour:"2-digit", minute:"2-digit", second:"2-digit"
-      }).format(new Date())
-        .replace(/(\d{2})\/(\d{2})\/(\d{4}),\s*/,"$3-$1-$2T")
-        .replace(" ", "")
-      );
+        year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+        hour12: false
+      });
+      const parts = fmt.formatToParts(new Date());
+      const get = (t)=> parts.find(p=>p.type===t)?.value || "00";
+      const y=get("year"), m=get("month"), d=get("day"), hh=get("hour"), mm=get("minute"), ss=get("second");
+      return new Date(`${y}-${m}-${d}T${hh}:${mm}:${ss}`);
     }
 
     function minutesBetween(a, b){
@@ -584,8 +571,6 @@
       if (st === "PAUSED") return "HT";
       if (st === "FINISHED") return "FT";
       if (st === "IN_PLAY" || st === "LIVE") return "LIVE";
-
-      // scheduled: show KO time (London)
       if (st === "SCHEDULED" || st === "TIMED") {
         const d = parseUtc(match.utcDate);
         if (!d) return "KO";
@@ -595,29 +580,22 @@
       return st;
     }
 
-    // IMPORTANT: football-data often keeps the *current* live score in score.fullTime.
-    // We'll prefer fullTime when it has numbers, otherwise halfTime, otherwise blank.
+    // prefer fullTime when present; else halfTime; else blank
     function scoresFor(match){
       const ft = match.score?.fullTime || {};
       const ht = match.score?.halfTime || {};
-
       const hs = (ft.home ?? ht.home ?? null);
       const as = (ft.away ?? ht.away ?? null);
-
-      return {
-        home: (hs === null ? "" : String(hs)),
-        away: (as === null ? "" : String(as)),
-      };
+      return { home: hs, away: as };
     }
 
     function competitionPriority(comp){
-      const order = COMPS; // keep requested order
-      const i = order.indexOf(comp);
+      const i = COMPS.indexOf(comp);
       return i === -1 ? 999 : i;
     }
 
     function pinAndSort(matches){
-      const ms = matches.filter(m => !m.__error && m.homeTeam && m.awayTeam);
+      const ms = matches.filter(m => m && m.homeTeam && m.awayTeam);
 
       const annotated = ms.map(m => {
         const homeId = m.homeTeam.id;
@@ -645,11 +623,9 @@
     function decideMode(matches, now){
       if (forcedMode === "live" || forcedMode === "welcome") return forcedMode;
 
-      const sorted = pinAndSort(matches);
-      const liveNow = sorted.some(m => isLiveStatus(m.status));
+      const liveNow = matches.some(m => isLiveStatus(m.status));
 
-      // warm-up window before KO
-      const warm = sorted.some(m => {
+      const warm = matches.some(m => {
         const st = String(m.status || "").toUpperCase();
         if (st !== "SCHEDULED" && st !== "TIMED") return false;
         const mins = minutesBetween(now, m.__kick);
@@ -658,8 +634,7 @@
 
       if (liveNow || warm) return "live";
 
-      // post-match window after estimated end
-      const finished = sorted.filter(m => String(m.status || "").toUpperCase() === "FINISHED" && m.__kick.getTime() > 0);
+      const finished = matches.filter(m => String(m.status || "").toUpperCase() === "FINISHED" && m.__kick.getTime() > 0);
       if (finished.length) {
         const latest = finished.reduce((p,c)=> (c.__kick > p.__kick ? c : p));
         const estEnd = new Date(latest.__kick.getTime() + 105*60000);
@@ -680,14 +655,13 @@
 
     function toRowItem(m){
       const sc = scoresFor(m);
-      const st = statusLabel(m);
       return {
         id: m.id,
         home: m.homeTeam?.name || "",
         away: m.awayTeam?.name || "",
-        hs: sc.home,
-        as: sc.away,
-        st,
+        hs: (sc.home === null || sc.home === undefined) ? "" : String(sc.home),
+        as: (sc.away === null || sc.away === undefined) ? "" : String(sc.away),
+        st: statusLabel(m),
         nufc: !!m.__isNUFC,
         comp: String(m.comp || "").toUpperCase(),
       };
@@ -705,67 +679,17 @@
           }).format(now);
         }
 
-                  dbgLastPollEl.textContent = new Intl.DateTimeFormat('en-GB',{
-            timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'
-          }).format(now);
-        }
-
         const matches = await fetchMatches();
-        const now = londonNow(); // keep one "now" for everything
-
-const PRE_MIN  = Math.max(0, Math.min(2880, parseInt(params.get("pre")  || "30", 10)));
-const POST_MIN = Math.max(0, Math.min(240,  parseInt(params.get("post") || "45", 10)));
-
-function isLiveStatus(st){
-  const s = String(st || "").toUpperCase();
-  return s === "IN_PLAY" || s === "PAUSED" || s === "LIVE";
-}
-
-function minutesBetween(a, b){
-  return (b.getTime() - a.getTime()) / 60000;
-}
-
-function parseUtc(utcStr){
-  const d = new Date(utcStr);
-  return isNaN(d.getTime()) ? null : d;
-}
-
-// attach kick times once so filtering is consistent
-const annotated = matches.map(m => {
-  const kick = parseUtc(m.utcDate) || new Date(0);
-  return { ...m, __kick: kick };
-});
-
-// Filter: live OR within pre window OR within post window
-const display = annotated.filter(m => {
-  const st = String(m.status || "").toUpperCase();
-
-  if (isLiveStatus(st)) return true;
-
-  if (st === "SCHEDULED" || st === "TIMED") {
-    const minsToKO = minutesBetween(now, m.__kick);
-    return minsToKO >= 0 && minsToKO <= PRE_MIN;
-  }
-
-  if (st === "FINISHED") {
-    // show for POST_MIN after estimated end (KO + 105 mins)
-    const estEnd = new Date(m.__kick.getTime() + 105 * 60000);
-    const minsAfter = minutesBetween(estEnd, now);
-    return minsAfter >= 0 && minsAfter <= POST_MIN;
-  }
-
-  return false;
-});
         const sorted = pinAndSort(matches);
+
         const mode = decideMode(sorted, now);
-
-
         document.body.setAttribute("data-mode", mode);
         if (DEBUG && dbgModeEl) dbgModeEl.textContent = mode.toUpperCase();
 
         // Filter what we show
         let display = sorted.filter(m => {
           const st = String(m.status || "").toUpperCase();
+
           if (isLiveStatus(st)) return true;
 
           if (st === "SCHEDULED" || st === "TIMED"){
@@ -782,7 +706,7 @@ const display = annotated.filter(m => {
           return false;
         });
 
-        // If live mode but nothing matched, show next scheduled to avoid blank
+        // If live mode but nothing matched, show next scheduled so it never looks "broken"
         if (mode === "live" && display.length === 0){
           display = sorted
             .filter(m => {
@@ -795,10 +719,7 @@ const display = annotated.filter(m => {
         const rows = display.map(toRowItem);
         window.render(rows);
 
-        // Polling cadence:
-        // - live: 20s
-        // - warm/pre: 60s
-        // - welcome: 5 min
+        // Polling cadence
         const hasLive = display.some(m => isLiveStatus(m.status));
         const hasWarm = display.some(m => {
           const st = String(m.status || "").toUpperCase();
@@ -808,21 +729,24 @@ const display = annotated.filter(m => {
         });
 
         const nextPoll = (() => {
-          if (mode === "live" && hasLive) return 20_000;
-          if (mode === "live" && hasWarm) return 60_000;
-          if (mode === "live") return 90_000;
-          return 300_000;
+          if (mode === "live" && hasLive) return 20_000;   // during live
+          if (mode === "live" && hasWarm) return 60_000;   // pre window
+          if (mode === "live") return 90_000;              // fallback
+          return 300_000;                                  // welcome
         })();
 
         setDot('good');
+
         if (DEBUG){
           if (dbgEveryEl) dbgEveryEl.textContent = `${((nextPoll/1000)|0)}s`;
           if (dbgNextPollEl) dbgNextPollEl.textContent = `${((nextPoll/1000)|0)}s`;
+          if (dbgRowsEl) dbgRowsEl.textContent = String(MAX_VISIBLE);
+          if (dbgCompsEl) dbgCompsEl.textContent = COMPS.join(",");
         }
 
         setDebug(`Mode=${mode.toUpperCase()} | rows=${rows.length} | next ${(nextPoll/1000)|0}s`);
         setTimeout(tick, nextPoll);
-      }catch(e){
+      } catch(e){
         setDot('bad');
         if (DEBUG && dbgModeEl) dbgModeEl.textContent = 'ERROR';
         setDebug(`ERROR: ${e.message || e}`);
