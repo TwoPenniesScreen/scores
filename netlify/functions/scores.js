@@ -20,7 +20,7 @@ const NAME_MAP = new Map(Object.entries({
   "Sunderland AFC": "Sunderland",
   "Manchester United FC": "Manchester Utd",
   "Manchester City FC": "Manchester City",
-  "Tottenham Hotspur FC": "Totenham Hotspur",
+  "Tottenham Hotspur FC": "Tottenham Hotspur",
   "Wolverhampton Wanderers FC": "Wolves",
   "Brighton & Hove Albion FC": "Brighton",
   "Brighton and Hove Albion FC": "Brighton",
