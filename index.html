@@ -213,7 +213,11 @@
       background: rgba(0,0,0,.72);
       backdrop-filter: blur(6px);
       border: 1px solid rgba(255,255,255,.22);
+      flex-direction: column;
+      min-width: 150px;
     }
+    .debugRow{ display:flex; justify-content:space-between; gap:10px; white-space:nowrap; }
+    .debugBtns{ display:flex; gap:10px; }
     .debug button{
       font-family:inherit;
       padding:10px 12px;
@@ -234,22 +238,6 @@
       z-index: 1000000;
       pointer-events: none;
     }
-
-    .debugInfo{
-      margin-top: 8px;
-      padding-top: 8px;
-      border-top: 1px solid rgba(255,255,255,.18);
-      display: grid;
-      grid-template-columns: auto auto;
-      column-gap: 12px;
-      row-gap: 4px;
-      align-items: baseline;
-      white-space: nowrap;
-      font-variant-numeric: tabular-nums;
-      font-feature-settings: 'tnum' 1;
-    }
-    .debugInfo .k{ opacity: .85; }
-    .debugInfo .v{ text-align:right; }
   </style>
 </head>
 
@@ -257,19 +245,18 @@
   <div class="bg" aria-hidden="true"></div>
   <div id="statusDot" aria-hidden="true"></div>
 
-  <div class="debug" aria-label="Debug controls">
-    <button id="btnWelcome" type="button">WELCOME</button>
-    <button id="btnLive" type="button">LIVE</button>
-
-    <div id="debugStatus" style="margin-top:6px;color:rgba(255,255,255,.85);font-size:13px;white-space:nowrap;"></div>
-
-    <div class="debugInfo" aria-hidden="true">
-      <div class="k">Mode</div><div class="v" id="dbgMode">—</div>
-      <div class="k">Last poll</div><div class="v" id="dbgLastPoll">—</div>
-      <div class="k">Every</div><div class="v" id="dbgEvery">—</div>
-      <div class="k">Rows</div><div class="v" id="dbgRows">—</div>
-      <div class="k">Comps</div><div class="v" id="dbgComps">—</div>
+  <div class="debug" aria-label="Debug controls" id="debugPanel">
+    <div class="debugBtns">
+      <button id="btnWelcome" type="button">WELCOME</button>
+      <button id="btnLive" type="button">LIVE</button>
     </div>
+    <div class="debugRow"><div>MODE</div><div id="dbgMode">—</div></div>
+    <div class="debugRow"><div>LAST POLL</div><div id="dbgLastPoll">—</div></div>
+    <div class="debugRow"><div>NEXT</div><div id="dbgNextPoll">—</div></div>
+    <div class="debugRow"><div>EVERY</div><div id="dbgEvery">—</div></div>
+    <div class="debugRow"><div>ROWS</div><div id="dbgRows">—</div></div>
+    <div class="debugRow"><div>COMPS</div><div id="dbgComps">—</div></div>
+    <div class="debugRow"><div>ERR</div><div id="dbgErr">—</div></div>
   </div>
 
   <div class="content">
@@ -281,24 +268,113 @@
 
   <script>
     /*****************************************************************
-     * 1) RENDERER
+     * PARAMS + DEBUG
+     *****************************************************************/
+    const params = new URLSearchParams(window.location.search);
+    const DEBUG = params.get("debug") === "1";
+    const forcedMode = (params.get("mode") || "").toLowerCase();
+
+    const COMPS = (params.get("comps") || "PL,CL,EC,WC")
+      .split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
+
+    const MAX_VISIBLE = Math.max(1, Math.min(8, parseInt(params.get("max") || "5", 10)));
+    const PRE_MIN  = Math.max(0, Math.min(2880, parseInt(params.get("pre")  || "60", 10)));
+    const POST_MIN = Math.max(0, Math.min(720,  parseInt(params.get("post") || "120", 10)));
+    const NUFC_ID  = parseInt(params.get("nufcId") || "67", 10);
+
+    window.__MAX_VISIBLE = MAX_VISIBLE;
+
+    const debugPanel = document.getElementById("debugPanel");
+    if (debugPanel) debugPanel.style.display = DEBUG ? "flex" : "none";
+
+    const dbgModeEl = document.getElementById("dbgMode");
+    const dbgLastPollEl = document.getElementById("dbgLastPoll");
+    const dbgNextPollEl = document.getElementById("dbgNextPoll");
+    const dbgEveryEl = document.getElementById("dbgEvery");
+    const dbgRowsEl = document.getElementById("dbgRows");
+    const dbgCompsEl = document.getElementById("dbgComps");
+    const dbgErrEl = document.getElementById("dbgErr");
+
+    if (DEBUG){
+      if (dbgRowsEl) dbgRowsEl.textContent = String(MAX_VISIBLE);
+      if (dbgCompsEl) dbgCompsEl.textContent = COMPS.join(",");
+    }
+
+    const statusDot = document.getElementById("statusDot");
+    function setDot(state){
+      if (!statusDot) return;
+      if (state === "clear") statusDot.style.background = "transparent";
+      else if (state === "good") statusDot.style.background = "#18c46c";
+      else if (state === "warn") statusDot.style.background = "#f2b01e";
+      else statusDot.style.background = "#e53935";
+    }
+
+    const setMode = (m) => document.body.setAttribute("data-mode", m);
+    const btnWelcome = document.getElementById("btnWelcome");
+    const btnLive = document.getElementById("btnLive");
+    if (btnWelcome) btnWelcome.onclick = () => setMode("welcome");
+    if (btnLive) btnLive.onclick = () => setMode("live");
+
+    /*****************************************************************
+     * TIME HELPERS
+     *****************************************************************/
+    function londonNow(){
+      // Simple + reliable: just use Date() (UTC internally) and format separately when needed.
+      // We only need "now" as a timestamp reference.
+      return new Date();
+    }
+
+    function parseUtc(utcStr){
+      const d = new Date(utcStr);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function minutesBetween(a, b){
+      return (b.getTime() - a.getTime()) / 60000;
+    }
+
+    function isLiveStatus(st){
+      const s = String(st || "").trim().toUpperCase();
+      return s === "IN_PLAY" || s === "PAUSED" || s === "LIVE";
+    }
+
+    function statusLabel(match){
+      const st = String(match.status || "").toUpperCase();
+      if (st === "PAUSED") return "HT";
+      if (st === "FINISHED") return "FT";
+      if (st === "IN_PLAY" || st === "LIVE") return "LIVE";
+
+      if (st === "SCHEDULED" || st === "TIMED") {
+        const d = parseUtc(match.utcDate);
+        if (!d) return "KO";
+        const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour:"2-digit", minute:"2-digit" });
+        return fmt.format(d);
+      }
+      return st;
+    }
+
+    // Prefer fullTime when present (football-data often puts live score there)
+    function scoresFor(match){
+      const ft = match.score?.fullTime || {};
+      const ht = match.score?.halfTime || {};
+      const hs = (ft.home ?? ht.home ?? null);
+      const as = (ft.away ?? ht.away ?? null);
+      return { hs, as };
+    }
+
+    function competitionPriority(comp){
+      const i = COMPS.indexOf(comp);
+      return i === -1 ? 999 : i;
+    }
+
+    /*****************************************************************
+     * RENDERER (pins NUFC, scrolls overflow, updates in-place)
      *****************************************************************/
     const rowsPinned = document.getElementById('rowsPinned');
     const scrollViewport = document.getElementById('scrollViewport');
 
-    const MAX_VISIBLE_DEFAULT = 5;
     const GAP = 12;
-
-    const state = {
-      pinnedId: null,
-      orderKey: "",
-      built: false,
-      scrollInner: null,
-    };
-
-    function maxVisible(){
-      return (typeof window.__MAX_VISIBLE === 'number' ? window.__MAX_VISIBLE : MAX_VISIBLE_DEFAULT);
-    }
+    const state = { orderKey:"", built:false, pinnedId:null, scrollInner:null };
 
     function setText(el, val){
       const next = (val === null || val === undefined) ? "" : String(val);
@@ -309,7 +385,6 @@
       const row = document.createElement("div");
       row.className = `row${r.nufc ? " nufc" : ""}`;
       row.dataset.id = String(r.id || "");
-
       row.innerHTML = `
         <div class="compChip">${String(r.comp || "").toUpperCase()}</div>
         <div class="team home"></div>
@@ -323,7 +398,6 @@
         </div>
         <div class="team away"></div>
       `;
-
       updateRowEl(row, r, false);
       return row;
     }
@@ -363,8 +437,10 @@
         if (!pinned && g.nufc) pinned = g;
         else rest.push(g);
       }
-      const maxVis = maxVisible();
+
+      const maxVis = MAX_VISIBLE;
       const visibleSlots = pinned ? (maxVis - 1) : maxVis;
+
       const scrollUnique = (rest.length > visibleSlots) ? rest : [];
       return { pinned, scrollUnique, visibleSlots };
     }
@@ -403,6 +479,7 @@
       if (scrollUnique.length){
         ensureScrollStructure();
 
+        // Duplicate for seamless scroll
         const dup = scrollUnique.concat(scrollUnique);
         for (const r of dup){
           state.scrollInner.appendChild(createRowEl(r));
@@ -463,127 +540,39 @@
       }
     }
 
-    window.render = function(list){
-      updateUI(list);
-    };
+    function render(list){ updateUI(list); }
 
     /*****************************************************************
-     * 2) POLLING + BUSINESS RULES
+     * FETCH + FILTER + SORT
      *****************************************************************/
-    const params = new URLSearchParams(window.location.search);
-    const DEBUG = params.get("debug") === "1";
-    const forcedMode = (params.get("mode") || "").toLowerCase();
-
-    const MAX_VISIBLE = Math.max(1, Math.min(8, parseInt(params.get("max") || "5", 10)));
-    const PRE_MIN  = Math.max(0, Math.min(2880, parseInt(params.get("pre")  || "60", 10)));
-    const POST_MIN = Math.max(0, Math.min(720,  parseInt(params.get("post") || "120", 10)));
-    const NUFC_ID  = parseInt(params.get("nufcId") || "67", 10);
-
-    window.__MAX_VISIBLE = MAX_VISIBLE;
-
-    const debugStatus = document.getElementById("debugStatus");
-    const debugPanel = document.querySelector(".debug");
-    if (debugPanel) debugPanel.style.display = DEBUG ? "flex" : "none";
-    if (debugStatus) debugStatus.style.display = DEBUG ? "block" : "none";
-
-    const dbgModeEl = document.getElementById("dbgMode");
-    const dbgLastPollEl = document.getElementById("dbgLastPoll");
-    const dbgEveryEl = document.getElementById("dbgEvery");
-    const dbgRowsEl = document.getElementById("dbgRows");
-    const dbgCompsEl = document.getElementById("dbgComps");
-
-    if (DEBUG){
-      if (dbgRowsEl) dbgRowsEl.textContent = String(MAX_VISIBLE);
+    async function fetchMatches(){
+      const url = `/.netlify/functions/scores?comps=${encodeURIComponent(COMPS.join(","))}&v=${Date.now()}`;
+      const res = await fetch(url, { cache:"no-store" });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Unknown API error");
+      return data.matches || [];
     }
 
-    const setMode = (m) => document.body.setAttribute("data-mode", m);
-    (() => { const el=document.getElementById("btnWelcome"); if(el) el.onclick = () => setMode("welcome"); })();
-    (() => { const el=document.getElementById("btnLive"); if(el) el.onclick = () => setMode("live"); })();
+    function annotateAndSort(matches){
+      const ms = (matches || []).filter(m => m && m.homeTeam && m.awayTeam);
 
-    const statusDot = document.getElementById("statusDot");
-    function setDot(state){
-      if (!statusDot) return;
-      if (state === "clear") statusDot.style.background = "transparent";
-      else if (state === "good") statusDot.style.background = "#18c46c";
-      else if (state === "warn") statusDot.style.background = "#f2b01e";
-      else statusDot.style.background = "#e53935";
-    }
-    function setDebug(text){
-      if (!debugStatus) return;
-      debugStatus.textContent = text;
-    }
-
-    const COMPS = (params.get("comps") || "PL,CL,EC,WC")
-      .split(",").map(s=>s.trim().toUpperCase()).filter(Boolean);
-    if (DEBUG && dbgCompsEl) dbgCompsEl.textContent = COMPS.join(",");
-
-    function londonNow(){
-      return new Date(new Intl.DateTimeFormat("en-US", {
-        timeZone: "Europe/London",
-        hour12:false,
-        year:"numeric", month:"2-digit", day:"2-digit",
-        hour:"2-digit", minute:"2-digit", second:"2-digit"
-      }).format(new Date())
-        .replace(/(\d{2})\/(\d{2})\/(\d{4}),\s*/,"$3-$1-$2T")
-        .replace(" ", "")
-      );
-    }
-
-    function parseUtc(utcStr){
-      const d = new Date(utcStr);
-      return isNaN(d.getTime()) ? null : d;
-    }
-
-    function minutesBetween(a, b){
-      return (b.getTime() - a.getTime()) / 60000;
-    }
-
-    function isLiveStatus(st){
-      const s = String(st || "").trim().toUpperCase();
-      return s === "IN_PLAY" || s === "PAUSED" || s === "LIVE";
-    }
-
-    function statusLabel(match){
-      const st = String(match.status || "").toUpperCase();
-      if (st === "PAUSED") return "HT";
-      if (st === "FINISHED") return "FT";
-      if (st === "IN_PLAY" || st === "LIVE") return "LIVE";
-      if (st === "SCHEDULED" || st === "TIMED") {
-        const d = parseUtc(match.utcDate);
-        if (!d) return "KO";
-        const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour:"2-digit", minute:"2-digit" });
-        return fmt.format(d);
-      }
-      return st;
-    }
-
-    function scoresFor(match){
-      const ft = match.score?.fullTime || {};
-      const ht = match.score?.halfTime || {};
-      const hs = (ft.home ?? ht.home ?? null);
-      const as = (ft.away ?? ht.away ?? null);
-      return { home: hs, away: as };
-    }
-
-    function competitionPriority(comp){
-      const i = COMPS.indexOf(comp);
-      return i === -1 ? 999 : i;
-    }
-
-    function pinAndSort(matches){
-      const annotated = matches.map(m => {
+      const annotated = ms.map(m => {
         const kick = parseUtc(m.utcDate) || new Date(0);
         const live = isLiveStatus(m.status);
         const isNUFC = (!!NUFC_ID && (m.homeTeam?.id === NUFC_ID || m.awayTeam?.id === NUFC_ID));
-        const pin = !!(isNUFC && live);
+        const pin = !!(isNUFC && live); // pin only when NUFC live
         return { ...m, __kick:kick, __live:live, __isNUFC:isNUFC, __pin:pin };
       });
 
       annotated.sort((a,b) => {
         if (a.__pin !== b.__pin) return a.__pin ? -1 : 1;
         if (a.__live !== b.__live) return a.__live ? -1 : 1;
-        const cp = competitionPriority(String(a.comp||"").toUpperCase()) - competitionPriority(String(b.comp||"").toUpperCase());
+
+        const ac = String(a.comp||"").toUpperCase();
+        const bc = String(b.comp||"").toUpperCase();
+        const cp = competitionPriority(ac) - competitionPriority(bc);
         if (cp !== 0) return cp;
+
         return a.__kick.getTime() - b.__kick.getTime();
       });
 
@@ -600,25 +589,50 @@
         const mins = minutesBetween(now, m.__kick);
         return mins >= 0 && mins <= PRE_MIN;
       });
-
       if (liveNow || warm) return "live";
 
       const finished = sorted.filter(m => String(m.status || "").toUpperCase() === "FINISHED" && m.__kick.getTime() > 0);
-      if (finished.length) {
+      if (finished.length){
         const latest = finished.reduce((p,c)=> (c.__kick > p.__kick ? c : p));
         const estEnd = new Date(latest.__kick.getTime() + 105*60000);
         const minsAfter = minutesBetween(estEnd, now);
         if (minsAfter >= 0 && minsAfter <= POST_MIN) return "live";
       }
+
       return "welcome";
     }
 
-    async function fetchMatches(){
-      const url = `/.netlify/functions/scores?comps=${encodeURIComponent(COMPS.join(","))}`;
-      const res = await fetch(url, { cache:"no-store" });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Unknown API error");
-      return data.matches || [];
+    function filterForDisplay(sorted, now, mode){
+      let display = sorted.filter(m => {
+        const st = String(m.status || "").toUpperCase();
+
+        if (isLiveStatus(st)) return true;
+
+        if (st === "SCHEDULED" || st === "TIMED"){
+          const mins = minutesBetween(now, m.__kick);
+          return mins >= 0 && mins <= PRE_MIN;
+        }
+
+        if (st === "FINISHED"){
+          const estEnd = new Date(m.__kick.getTime() + 105*60000);
+          const minsAfter = minutesBetween(estEnd, now);
+          return minsAfter >= 0 && minsAfter <= POST_MIN;
+        }
+
+        return false;
+      });
+
+      // If live mode but nothing matched, show next scheduled so you never get a blank card
+      if (mode === "live" && display.length === 0){
+        display = sorted
+          .filter(m => {
+            const st = String(m.status || "").toUpperCase();
+            return st === "SCHEDULED" || st === "TIMED";
+          })
+          .slice(0, MAX_VISIBLE);
+      }
+
+      return display;
     }
 
     function toRowItem(m){
@@ -627,18 +641,24 @@
         id: m.id,
         home: m.homeTeam?.name || "",
         away: m.awayTeam?.name || "",
-        hs: (sc.home === null || sc.home === undefined) ? "" : sc.home,
-        as: (sc.away === null || sc.away === undefined) ? "" : sc.away,
+        hs: sc.hs,
+        as: sc.as,
         st: statusLabel(m),
         nufc: !!m.__isNUFC,
         comp: String(m.comp || "").toUpperCase(),
       };
     }
 
+    /*****************************************************************
+     * THE POLL LOOP ("tick")
+     *****************************************************************/
     async function tick(){
       try{
+        setDot("warn");
+        if (dbgErrEl) dbgErrEl.textContent = "—";
+
         const now = londonNow();
-        setDot('warn');
+
         if (DEBUG && dbgLastPollEl){
           dbgLastPollEl.textContent = new Intl.DateTimeFormat('en-GB',{
             timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'
@@ -646,43 +666,15 @@
         }
 
         const matches = await fetchMatches();
-        const sorted = pinAndSort(matches);
+        const sorted = annotateAndSort(matches);
         const mode = decideMode(sorted, now);
-
         document.body.setAttribute("data-mode", mode);
+
         if (DEBUG && dbgModeEl) dbgModeEl.textContent = mode.toUpperCase();
 
-        let display = sorted.filter(m => {
-          const st = String(m.status || "").toUpperCase();
-
-          if (isLiveStatus(st)) return true;
-
-          if (st === "SCHEDULED" || st === "TIMED"){
-            const mins = minutesBetween(now, m.__kick);
-            return mins >= 0 && mins <= PRE_MIN;
-          }
-
-          if (st === "FINISHED"){
-            const estEnd = new Date(m.__kick.getTime() + 105*60000);
-            const minsAfter = minutesBetween(estEnd, now);
-            return minsAfter >= 0 && minsAfter <= POST_MIN;
-          }
-
-          return false;
-        });
-
-        // If live mode but nothing matched, show next scheduled to avoid blank
-        if (mode === "live" && display.length === 0){
-          display = sorted
-            .filter(m => {
-              const st = String(m.status || "").toUpperCase();
-              return st === "SCHEDULED" || st === "TIMED";
-            })
-            .slice(0, MAX_VISIBLE);
-        }
-
+        const display = filterForDisplay(sorted, now, mode);
         const rows = display.map(toRowItem);
-        window.render(rows);
+        render(rows);
 
         const hasLive = display.some(m => isLiveStatus(m.status));
         const hasWarm = display.some(m => {
@@ -692,26 +684,30 @@
           return mins >= 0 && mins <= PRE_MIN;
         });
 
-        const nextPoll = (() => {
+        const nextPollMs = (() => {
           if (mode === "live" && hasLive) return 20_000;
           if (mode === "live" && hasWarm) return 60_000;
           if (mode === "live") return 90_000;
           return 300_000;
         })();
 
-        setDot('good');
-        if (DEBUG && dbgEveryEl) dbgEveryEl.textContent = `${((nextPoll/1000)|0)}s`;
-        setDebug(`Mode=${mode.toUpperCase()} | rows=${rows.length} | next ${(nextPoll/1000)|0}s`);
-        setTimeout(tick, nextPoll);
+        setDot("good");
 
+        if (DEBUG){
+          const s = `${(nextPollMs/1000)|0}s`;
+          if (dbgEveryEl) dbgEveryEl.textContent = s;
+          if (dbgNextPollEl) dbgNextPollEl.textContent = s;
+        }
+
+        setTimeout(tick, nextPollMs);
       }catch(e){
-        setDot('bad');
-        setDebug(`ERROR: ${e.message || e}`);
+        setDot("bad");
+        if (dbgErrEl) dbgErrEl.textContent = (e && e.message) ? e.message : String(e);
         setTimeout(tick, 60_000);
       }
     }
 
-    setDot('clear');
+    setDot("clear");
     setTimeout(tick, 500);
   </script>
 </body>
