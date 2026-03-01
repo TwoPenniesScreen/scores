@@ -18,9 +18,9 @@ const CACHE_MS = 15_000; // 15s
 const NAME_MAP = new Map(Object.entries({
   "AFC Bournemouth": "Bournemouth",
   "Sunderland AFC": "Sunderland",
-  "Manchester United FC": "Man Utd",
-  "Manchester City FC": "Man City",
-  "Tottenham Hotspur FC": "Spurs",
+  "Manchester United FC": "Manchester Utd",
+  "Manchester City FC": "Manchester City",
+  "Tottenham Hotspur FC": "Totenham Hotspur",
   "Wolverhampton Wanderers FC": "Wolves",
   "Brighton & Hove Albion FC": "Brighton",
   "Brighton and Hove Albion FC": "Brighton",
@@ -29,8 +29,8 @@ const NAME_MAP = new Map(Object.entries({
   "Nottingham Forest FC": "Nott'm Forest",
   "Crystal Palace FC": "Crystal Palace",
   "Queens Park Rangers FC": "QPR",
-  "Sheffield Wednesday FC": "Sheff Wed",
-  "Sheffield United FC": "Sheff Utd",
+  "Sheffield Wednesday FC": "Sheffield Wed",
+  "Sheffield United FC": "Sheffield Utd",
   "West Bromwich Albion FC": "West Brom",
   "Preston North End FC": "Preston",
   "Millwall FC": "Millwall",
@@ -44,7 +44,7 @@ const NAME_MAP = new Map(Object.entries({
   "Charlton Athletic FC": "Charlton",
   "Portsmouth FC": "Portsmouth",
   "Oxford United FC": "Oxford",
-  "Stoke City FC": "Stoke",
+  "Stoke City FC": "Stoke City",
   "Wrexham AFC": "Wrexham",
 
   // examples of diacritics removal
