@@ -338,20 +338,39 @@
       return s === "IN_PLAY" || s === "PAUSED" || s === "LIVE";
     }
 
-    function statusLabel(match){
-      const st = String(match.status || "").toUpperCase();
-      if (st === "PAUSED") return "HT";
-      if (st === "FINISHED") return "FT";
-      if (st === "IN_PLAY" || st === "LIVE") return "LIVE";
+   function statusLabel(match){
+  const st = String(match.status || "").toUpperCase();
 
-      if (st === "SCHEDULED" || st === "TIMED") {
-        const d = parseUtc(match.utcDate);
-        if (!d) return "KO";
-        const fmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour:"2-digit", minute:"2-digit" });
-        return fmt.format(d);
-      }
-      return st;
+  // ✅ show minutes when live
+  if (st === "IN_PLAY" || st === "LIVE") {
+    const min = Number(match.minute);
+    const it = Number(match.injuryTime);
+    if (Number.isFinite(min)) {
+      if (Number.isFinite(it) && it > 0) return `${min}+${it}'`;
+      return `${min}'`;
     }
+    return "LIVE"; // fallback if API didn't include minute
+  }
+
+  if (st === "PAUSED") return "HT";
+  if (st === "FINISHED") {
+    if (match.score?.duration === "PENALTY_SHOOTOUT") return "PEN"; // optional
+    return "FT";
+  }
+
+  if (st === "SCHEDULED" || st === "TIMED") {
+    const d = parseUtc(match.utcDate);
+    if (!d) return "KO";
+    const fmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      hour:"2-digit",
+      minute:"2-digit"
+    });
+    return fmt.format(d);
+  }
+
+  return st;
+}
 
     // Prefer fullTime when present (football-data often puts live score there)
     function scoresFor(match){
