@@ -51,6 +51,7 @@ const NAME_MAP = new Map(Object.entries({
   "Club Atlético de Madrid": "Atletico Madrid",
   "Qarabağ Ağdam FK": "Qarabag",
   "FK Bodø/Glimt": "Bodo/Glimt",
+  "Galatasaray SK": "Galatasaray", 
 }));
 
 function stripDiacritics(s) {
