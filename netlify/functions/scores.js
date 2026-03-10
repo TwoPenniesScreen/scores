@@ -53,7 +53,7 @@ const NAME_MAP = new Map(Object.entries({
   "FK Bodø/Glimt": "Bodo/Glimt",
   "Galatasaray SK": "Galatasaray",
   "FC Barcelona": "Barcelona",
-  "FC Bayern Munchen": "Bayern Munich",
+  "FC Bayern München": "Bayern Munich",
   "Atalanta BC": "Atalanta",
 }));
 
