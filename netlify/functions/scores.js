@@ -147,7 +147,7 @@ function todayRangeLondon() {
   const from = londonDateYYYYMMDD(now);
 
   // look ahead 14 days
-  const t = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
+  const t = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
   const to = londonDateYYYYMMDD(t);
 
   return { from, to };
