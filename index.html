@@ -261,7 +261,7 @@
 
   <div class="content">
     <div class="scoresCard" aria-label="Scores card">
-      <div class="rows" id="rowsned"></div>
+      <div class="rows" id="rowsPinned"></div>
       <div class="scrollViewport" id="scrollViewport" style="display:none;"></div>
     </div>
   </div>
@@ -281,12 +281,9 @@
     const PRE_MIN  = Math.max(0, Math.min(2880, parseInt(params.get("pre")  || "60", 10)));
     const POST_MIN = Math.max(0, Math.min(720,  parseInt(params.get("post") || "120", 10)));
     const HIGHLIGHT_IDS = (params.get("highlight") || "")
-
-  .split(",")
-
-  .map(v => parseInt(v.trim(), 10))
-
-  .filter(v => !isNaN(v));
+      .split(",")
+      .map(v => parseInt(v.trim(), 10))
+      .filter(v => !isNaN(v));
 
     window.__MAX_VISIBLE = MAX_VISIBLE;
 
@@ -413,7 +410,7 @@
     /*****************************************************************
      * RENDERER (s NUFC, scrolls overflow, updates in-place)
      *****************************************************************/
-    const rowsned = document.getElementById('rowsned');
+    const rowsPinned = document.getElementById('rowsPinned');
     const scrollViewport = document.getElementById('scrollViewport');
 
     const GAP = 12;
@@ -628,28 +625,22 @@
       const annotated = ms.map(m => {
         const kick = parseUtc(m.utcDate) || new Date(0);
         const live = isLiveStatus(m.status);
+
         const isHighlight =
+          HIGHLIGHT_IDS.includes(m.homeTeam?.id) ||
+          HIGHLIGHT_IDS.includes(m.awayTeam?.id);
 
-  HIGHLIGHT_IDS.includes(m.homeTeam?.id) ||
+        const pin = !!(isHighlight && live);
 
-  HIGHLIGHT_IDS.includes(m.awayTeam?.id);
+        return {
+          ...m,
+          __kick: kick,
+          __live: live,
+          __isHighlight: isHighlight,
+          __pin: pin
+        };
+      });
 
-const pin = !!(isHighlight && live);
-
-return {
-
-  ...m,
-
-  __kick:kick,
-
-  __live:live,
-
-  __isHighlight:isHighlight,
-
-  __pin:pin
-
-};
-});
       annotated.sort((a,b) => {
         if (a.__pin !== b.__pin) return a.__pin ? -1 : 1;
         if (a.__live !== b.__live) return a.__live ? -1 : 1;
