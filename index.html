@@ -280,7 +280,13 @@
     const MAX_VISIBLE = Math.max(1, Math.min(8, parseInt(params.get("max") || "5", 10)));
     const PRE_MIN  = Math.max(0, Math.min(2880, parseInt(params.get("pre")  || "60", 10)));
     const POST_MIN = Math.max(0, Math.min(720,  parseInt(params.get("post") || "120", 10)));
-    const NUFC_ID  = parseInt(params.get("nufcId") || "67", 10);
+    const HIGHLIGHT_IDS = (params.get("highlight") || "")
+
+  .split(",")
+
+  .map(v => parseInt(v.trim(), 10))
+
+  .filter(v => !isNaN(v));
 
     window.__MAX_VISIBLE = MAX_VISIBLE;
 
@@ -622,10 +628,27 @@
       const annotated = ms.map(m => {
         const kick = parseUtc(m.utcDate) || new Date(0);
         const live = isLiveStatus(m.status);
-        const isNUFC = (!!NUFC_ID && (m.homeTeam?.id === NUFC_ID || m.awayTeam?.id === NUFC_ID));
-        const pin = !!(isNUFC && live); // pin only when NUFC live
-        return { ...m, __kick:kick, __live:live, __isNUFC:isNUFC, __pin:pin };
-      });
+        const isHighlight =
+
+  HIGHLIGHT_IDS.includes(m.homeTeam?.id) ||
+
+  HIGHLIGHT_IDS.includes(m.awayTeam?.id);
+
+const pin = !!(isHighlight && live);
+
+return {
+
+  ...m,
+
+  __kick:kick,
+
+  __live:live,
+
+  __isHighlight:isHighlight,
+
+  __pin:pin
+
+};
 
       annotated.sort((a,b) => {
         if (a.__pin !== b.__pin) return a.__pin ? -1 : 1;
@@ -707,7 +730,7 @@
         hs: sc.hs,
         as: sc.as,
         st: statusLabel(m),
-        nufc: !!m.__isNUFC,
+        nufc: !!m.__isHighlight,
         comp: String(m.comp || "").toUpperCase(),
       };
     }
