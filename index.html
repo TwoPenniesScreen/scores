@@ -261,7 +261,7 @@
 
   <div class="content">
     <div class="scoresCard" aria-label="Scores card">
-      <div class="rows" id="rowsPinned"></div>
+      <div class="rows" id="rowsned"></div>
       <div class="scrollViewport" id="scrollViewport" style="display:none;"></div>
     </div>
   </div>
@@ -411,9 +411,9 @@
     }
 
     /*****************************************************************
-     * RENDERER (pins NUFC, scrolls overflow, updates in-place)
+     * RENDERER (s NUFC, scrolls overflow, updates in-place)
      *****************************************************************/
-    const rowsPinned = document.getElementById('rowsPinned');
+    const rowsned = document.getElementById('rowsned');
     const scrollViewport = document.getElementById('scrollViewport');
 
     const GAP = 12;
@@ -649,7 +649,7 @@ return {
   __pin:pin
 
 };
-
+});
       annotated.sort((a,b) => {
         if (a.__pin !== b.__pin) return a.__pin ? -1 : 1;
         if (a.__live !== b.__live) return a.__live ? -1 : 1;
