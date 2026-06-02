@@ -73,8 +73,33 @@ button{
 </div>
 
 <div class="row">
-  <label>Highlighted Team IDs (comma separated)</label>
-  <input id="highlight" type="text" value="67">
+
+  <label>Highlights</label>
+
+  <label>
+
+    <input type="checkbox" id="nufc" checked>
+
+    Newcastle
+
+  </label>
+
+  <label>
+
+    <input type="checkbox" id="england">
+
+    England
+
+  </label>
+
+  <label>
+
+    <input type="checkbox" id="scotland">
+
+    Scotland
+
+  </label>
+
 </div>
 
 <div class="row">
@@ -112,13 +137,23 @@ function buildUrl(){
   if(document.getElementById('cl').checked) comps.push('CL');
   if(document.getElementById('ec').checked) comps.push('EC');
   if(document.getElementById('wc').checked) comps.push('WC');
+const max = document.getElementById('max').value;
 
-  const max = document.getElementById('max').value;
-  const pre = document.getElementById('pre').value;
-  const post = document.getElementById('post').value;
-  const highlight = document.getElementById('highlight').value.trim();
-  const mode = document.getElementById('mode').value;
-  const debug = document.getElementById('debug').checked;
+const pre = document.getElementById('pre').value;
+
+const post = document.getElementById('post').value;
+
+const mode = document.getElementById('mode').value;
+
+const debug = document.getElementById('debug').checked;
+
+const highlights = [];
+
+if(document.getElementById('nufc').checked) highlights.push('67');
+
+if(document.getElementById('england').checked) highlights.push('770');
+
+if(document.getElementById('scotland').checked) highlights.push('8873');
 
   const params = new URLSearchParams();
 
@@ -126,9 +161,9 @@ function buildUrl(){
   params.set('max', max);
   params.set('pre', pre);
   params.set('post', post);
+if(highlights.length){
 
-  if(highlight){
-    params.set('highlight', highlight);
+  params.set('highlight', highlights.join(','));
   }
 
   if(mode){
