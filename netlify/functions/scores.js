@@ -146,8 +146,8 @@ function todayRangeLondon() {
   const now = new Date();
   const from = londonDateYYYYMMDD(now);
 
-  // include tomorrow (inclusive) so late-night / early hours don’t disappear
-  const t = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  // look ahead 14 days
+  const t = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000));
   const to = londonDateYYYYMMDD(t);
 
   return { from, to };
