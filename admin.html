@@ -26,8 +26,9 @@ label{
   font-weight:bold;
 }
 
-input[type="number"]{
-  width:120px;
+input[type="number"],
+input[type="text"]{
+  width:220px;
 }
 
 .url{
@@ -72,8 +73,8 @@ button{
 </div>
 
 <div class="row">
-  <label>NUFC Team ID</label>
-  <input id="nufc" type="number" value="67">
+  <label>Highlighted Team IDs (comma separated)</label>
+  <input id="highlight" type="text" value="67">
 </div>
 
 <div class="row">
@@ -115,7 +116,7 @@ function buildUrl(){
   const max = document.getElementById('max').value;
   const pre = document.getElementById('pre').value;
   const post = document.getElementById('post').value;
-  const nufc = document.getElementById('nufc').value;
+  const highlight = document.getElementById('highlight').value.trim();
   const mode = document.getElementById('mode').value;
   const debug = document.getElementById('debug').checked;
 
@@ -125,7 +126,10 @@ function buildUrl(){
   params.set('max', max);
   params.set('pre', pre);
   params.set('post', post);
-  params.set('nufcId', nufc);
+
+  if(highlight){
+    params.set('highlight', highlight);
+  }
 
   if(mode){
     params.set('mode', mode);
