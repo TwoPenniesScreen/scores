@@ -98,9 +98,17 @@ async function fdFetch(path, attempt = 0) {
     throw new Error("Global fetch not available. Set NODE_VERSION=18 (or 20) on Netlify.");
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "X-Auth-Token": API_KEY },
-  });
+const res = await fetch(`${API_BASE}${path}`, {
+
+  headers: {
+
+    "X-Auth-Token": API_KEY,
+
+    "X-Api-Version": "v4.1"
+
+  },
+
+});
 
   if (res.status === 429) {
     // capped retry
