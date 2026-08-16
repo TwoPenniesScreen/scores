@@ -612,10 +612,15 @@
      * FETCH + FILTER + SORT
      *****************************************************************/
     async function fetchMatches(){
-      const url = `/.netlify/functions/scores?comps=${encodeURIComponent(COMPS.join(","))}&v=${Date.now()}`;
+      const url = `/.netlify/functions/scores?comps=${encodeURIComponent(COMPS.join(","))}`;
       const res = await fetch(url, { cache:"no-store" });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || "Unknown API error");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.ok) {
+        throw new Error(data?.error || `Scores request failed (${res.status})`);
+      }
+      if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+        throw new Error("Scores feed is incomplete");
+      }
       return data.matches || [];
     }
 
@@ -762,7 +767,7 @@
         });
 
         const nextPollMs = (() => {
-          if (mode === "live" && hasLive) return 20_000;
+          if (mode === "live" && hasLive) return 30_000;
           if (mode === "live" && hasWarm) return 60_000;
           if (mode === "live") return 90_000;
           return 300_000;
@@ -778,7 +783,12 @@
 
         setTimeout(tick, nextPollMs);
       }catch(e){
+        // Never leave an old score on screen after a failed refresh. AbleSign
+        // can safely show the built-in generic slide until a complete feed returns.
+        setMode("welcome");
+        render([]);
         setDot("bad");
+        if (DEBUG && dbgModeEl) dbgModeEl.textContent = "WELCOME";
         if (dbgErrEl) dbgErrEl.textContent = (e && e.message) ? e.message : String(e);
         setTimeout(tick, 60_000);
       }

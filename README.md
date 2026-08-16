@@ -13,8 +13,11 @@
 - `?max=5`
 - `?pre=15` (minutes before KO to show upcoming)
 - `?post=15` (minutes after estimated final whistle to keep results)
-- `?nufcId=67`
+- `?highlight=67` (comma-separated team IDs to pin while live)
 
-## Live reliability workaround
-If football-data delays switching a match from TIMED->IN_PLAY, the front-end will **assume live**
-for up to 3 hours after kickoff and show it anyway (labelled LIVE, scores blank if feed is blank).
+## Reliability behaviour
+- Live matches refresh every 30 seconds.
+- The function keeps only a short 35-second warm cache to control upstream usage.
+- The cache is not a last-known-good store and is never updated from a failed request.
+- If any selected competition fails or times out, the scores are cleared and the screen returns to its generic welcome slide.
+- A failed competition is never silently omitted from an otherwise successful response.

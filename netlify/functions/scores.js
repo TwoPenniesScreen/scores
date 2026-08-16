@@ -8,11 +8,12 @@ const API_KEY =
   process.env.FOOTBALL_DATA_TOKEN ||
   "";
 
-// Warm-instance cache only (keeps polling cheap)
+// Warm-instance cache only. This is a short, normal polling cache—not a
+// last-known-good fallback. Failed or incomplete responses are never cached.
 let cache = { ts: 0, key: "", data: null };
 
-// If your front-end polls every ~20s, this prevents 20s * devices * comps from hammering the API.
-const CACHE_MS = 15_000; // 15s
+const CACHE_MS = 35_000;
+const UPSTREAM_TIMEOUT_MS = 8_000;
 
 // UK-friendly name map (extend as needed)
 const NAME_MAP = new Map(Object.entries({
@@ -88,42 +89,44 @@ function json(body, statusCode = 200, extraHeaders = {}) {
   };
 }
 
-async function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
-async function fdFetch(path, attempt = 0) {
+async function fdFetch(path) {
   if (!API_KEY) throw new Error("Missing FOOTBALL_DATA_API_KEY");
   if (typeof fetch !== "function") {
     throw new Error("Global fetch not available. Set NODE_VERSION=18 (or 20) on Netlify.");
   }
 
-const res = await fetch(`${API_BASE}${path}`, {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
-  headers: {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        "X-Auth-Token": API_KEY,
+        "X-Api-Version": "v4.1",
+      },
+      signal: controller.signal,
+    });
 
-    "X-Auth-Token": API_KEY,
+    // Fail fast and let the screen show its generic slide. Retrying a rate
+    // limited request immediately only spends more of the upstream allowance.
+    if (res.status === 429) {
+      throw new Error("football-data 429: rate limited");
+    }
 
-    "X-Api-Version": "v4.1"
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`football-data ${res.status}: ${txt.slice(0, 200)}`);
+    }
 
-  },
-
-});
-
-  if (res.status === 429) {
-    // capped retry
-    if (attempt >= 2) throw new Error("football-data 429: rate limited (max retries hit)");
-    const retry = parseInt(res.headers.get("retry-after") || "6", 10);
-    await sleep(Math.max(1, Math.min(10, retry)) * 1000);
-    return fdFetch(path, attempt + 1);
+    return res.json();
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      throw new Error(`football-data timed out after ${UPSTREAM_TIMEOUT_MS / 1000}s`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`football-data ${res.status}: ${txt.slice(0, 200)}`);
-  }
-
-  return res.json();
 }
 
 function getComps(event) {
@@ -154,7 +157,7 @@ function todayRangeLondon() {
   const now = new Date();
   const from = londonDateYYYYMMDD(now);
 
-  // look ahead 14 days
+  // Look ahead 30 days.
   const t = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
   const to = londonDateYYYYMMDD(t);
 
@@ -201,20 +204,38 @@ exports.handler = async (event) => {
       });
     }
 
-    const out = [];
-    const warnings = [];
+    // Fetch selected competitions together so one slow competition cannot make
+    // the whole function wait several times over.
+    const results = await Promise.allSettled(comps.map(async (comp) => {
+      const data = await fdFetch(
+        `/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${from}&dateTo=${to}`
+      );
+      return { comp, matches: Array.isArray(data.matches) ? data.matches : [] };
+    }));
 
-    // Fetch per competition (safer across plans)
-    for (const comp of comps) {
-      try {
-        const data = await fdFetch(
-          `/competitions/${encodeURIComponent(comp)}/matches?dateFrom=${from}&dateTo=${to}`
-        );
-        const matches = Array.isArray(data.matches) ? data.matches : [];
-        for (const m of matches) out.push(compactMatch(m, comp));
-      } catch (e) {
-        warnings.push(`comp ${comp}: ${e?.message || e}`);
+    const failures = [];
+    const out = [];
+
+    results.forEach((result, index) => {
+      const comp = comps[index];
+      if (result.status === "rejected") {
+        failures.push({ comp, error: result.reason?.message || String(result.reason) });
+        return;
       }
+      for (const match of result.value.matches) {
+        out.push(compactMatch(match, result.value.comp));
+      }
+    });
+
+    // Partial data is not trustworthy: a failed competition could be the one
+    // currently live. Return an error so the display clears to its generic slide.
+    if (failures.length > 0) {
+      console.error("Scores feed incomplete", failures);
+      return json({
+        ok: false,
+        error: "Scores temporarily unavailable",
+        failedCompetitions: failures.map(({ comp }) => comp),
+      }, 503, { "retry-after": "60" });
     }
 
     // De-dupe by id (last write wins)
@@ -231,7 +252,7 @@ exports.handler = async (event) => {
       dateTo: to,
       competitions: comps,
       matches: merged,
-      warnings,
+      warnings: [],
     });
   } catch (e) {
     return json({ ok: false, error: e?.message ? e.message : String(e) }, 500);
