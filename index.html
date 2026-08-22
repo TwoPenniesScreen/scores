@@ -20,19 +20,30 @@
       --stroke: rgba(255,255,255,.12);
       --rowbg: rgba(0,0,0,.28);
       --rowstroke: rgba(255,255,255,.10);
-      --card-max-h: 56vh;
+      --card-max-h: 605px;
     }
 
     *{ box-sizing:border-box; }
-    html,body{ width:100%; height:100%; margin:0; overflow:hidden; background:#0b0b0b; }
+    html,body{ width:100%; height:100%; margin:0; overflow:hidden; background:#000; }
     body{
       font-family: TwoPenniesPlain, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       color: var(--fg);
       text-transform: uppercase;
     }
 
+    .stage{
+      position:absolute;
+      left:0;
+      top:0;
+      width:1920px;
+      height:1080px;
+      overflow:hidden;
+      transform-origin:top left;
+      background:#0b0b0b;
+    }
+
     .bg{
-      position:fixed; inset:0;
+      position:absolute; inset:0;
       background-position:center;
       background-size:cover;
       background-repeat:no-repeat;
@@ -44,8 +55,8 @@
     .content{
       position:relative;
       z-index: 20;
-      width:100%;
-      height:100%;
+      width:1920px;
+      height:1080px;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -56,7 +67,7 @@
     body[data-mode="live"] .scoresCard{ display:block; }
 
     .scoresCard{
-      width: min(1500px, 82vw);
+      width: 1500px;
       max-height: var(--card-max-h);
       border-radius: 26px;
       background: var(--card);
@@ -242,6 +253,7 @@
 </head>
 
 <body data-mode="welcome">
+  <div class="stage" id="stage">
   <div class="bg" aria-hidden="true"></div>
   <div id="statusDot" aria-hidden="true"></div>
 
@@ -265,8 +277,23 @@
       <div class="scrollViewport" id="scrollViewport" style="display:none;"></div>
     </div>
   </div>
+  </div>
 
   <script>
+    const DESIGN_WIDTH = 1920;
+    const DESIGN_HEIGHT = 1080;
+    const stage = document.getElementById("stage");
+
+    function fitStage(){
+      const scale = Math.min(window.innerWidth / DESIGN_WIDTH, window.innerHeight / DESIGN_HEIGHT);
+      stage.style.left = `${(window.innerWidth - DESIGN_WIDTH * scale) / 2}px`;
+      stage.style.top = `${(window.innerHeight - DESIGN_HEIGHT * scale) / 2}px`;
+      stage.style.transform = `scale(${scale})`;
+    }
+
+    fitStage();
+    window.addEventListener("resize", fitStage);
+
     /*****************************************************************
      * PARAMS + DEBUG
      *****************************************************************/
