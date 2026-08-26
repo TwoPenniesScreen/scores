@@ -29,6 +29,8 @@ Settings are saved in Netlify Blobs and take effect without changing the public 
 
 Each competition is cached independently. Live competitions refresh frequently, fixtures close to kick-off refresh more often, and idle competitions refresh only every six hours. A failed live refresh is never allowed to leave a stale live score on screen.
 
+Scorers appear once per player with all of their goal times grouped together. The away scorer order is mirrored so the layout reads consistently outwards from the central score.
+
 ## Compatibility parameters
 
 Old screen URLs remain usable:
