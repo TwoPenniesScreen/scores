@@ -1,6 +1,6 @@
 # Two Pennies live scores
 
-The public screen remains a fixed 1920×1080 display with the existing live and evergreen backgrounds. It can now group matches by competition and, when two competitions overlap, show two compact scoreboards.
+The public screen remains a fixed 1920×1080 display with the existing live and evergreen backgrounds. It can group matches by competition and, when two competitions overlap, show two compact scoreboards. ESPN-backed matches also show mirrored goalscorers, own goals, red cards and concise match phases without changing the core layout.
 
 ## Admin
 
@@ -11,6 +11,7 @@ Open `/admin.html` to manage:
 - pre-match and post-match display windows;
 - one or two simultaneous competition boards;
 - competition marks and highlighted teams;
+- a preview-only simulator for scorers, own goals, red cards and match phases;
 - source health and fallback status.
 
 Settings are saved in Netlify Blobs and take effect without changing the public screen address.
@@ -22,7 +23,7 @@ Settings are saved in Netlify Blobs and take effect without changing the public 
 
 ## Source behaviour
 
-- **Hybrid** prefers football-data for competitions present in the current account and uses ESPN for additional competitions or as a fallback.
+- **Hybrid** retains one football-data fixture per match and safely merges the matching ESPN live score, clock and incident details into it. Unmatched ESPN records are never added as duplicates.
 - **ESPN only** makes no football-data requests and is intended to let the free feed be assessed before changing a subscription.
 - **football-data only** never uses ESPN; unsupported competitions report a health warning and do not make the whole screen fail.
 
