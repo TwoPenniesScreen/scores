@@ -96,14 +96,62 @@ function competitionMeta(competition) {
   return publicCompetition(competition);
 }
 
+function emptyIncidents() {
+  return {
+    home: { goals: [], redCards: [] },
+    away: { goals: [], redCards: [] },
+  };
+}
+
+function incidentName(detail) {
+  const athlete = detail?.athletesInvolved?.[0] || detail?.participants?.[0]?.athlete || {};
+  const shortName = stripDiacritics(athlete.shortName || "")
+    .replace(/^(?:[A-Za-z]\.[ ]*)+/, "")
+    .trim();
+  if (shortName) return shortName;
+  const fullName = stripDiacritics(athlete.displayName || athlete.fullName || "").trim();
+  return fullName.split(/\s+/).filter(Boolean).at(-1) || "Player";
+}
+
+function incidentTime(detail) {
+  let value = String(detail?.clock?.displayValue || "").trim();
+  if (!value && Number.isFinite(Number(detail?.clock?.value))) {
+    value = String(Math.max(1, Math.ceil(Number(detail.clock.value) / 60)));
+  }
+  value = value.replace(/[’]/g, "'").replace(/'\s*\+\s*/g, "+");
+  return value && !value.endsWith("'") ? `${value}'` : value;
+}
+
+function normaliseEspnIncidents(contest, homeId, awayId) {
+  const incidents = emptyIncidents();
+  for (const detail of Array.isArray(contest?.details) ? contest.details : []) {
+    const teamId = String(detail?.team?.id ?? "");
+    const side = teamId === String(homeId ?? "") ? "home" : teamId === String(awayId ?? "") ? "away" : null;
+    if (!side) continue;
+    const common = { name: incidentName(detail), time: incidentTime(detail) };
+    if (detail?.scoringPlay && !detail?.shootout) {
+      incidents[side].goals.push({
+        ...common,
+        ownGoal: Boolean(detail?.ownGoal),
+        penalty: Boolean(detail?.penaltyKick),
+      });
+    }
+    const typeText = String(detail?.type?.text || "").toLowerCase();
+    if (detail?.redCard || typeText.includes("red card")) incidents[side].redCards.push(common);
+  }
+  return incidents;
+}
+
 export function normaliseFootballData(match, competition) {
+  const status = String(match.status || "SCHEDULED").toUpperCase();
+  const duration = String(match.score?.duration || "").toUpperCase();
   return {
     id: `fd-${match.id}`,
     sourceId: String(match.id || ""),
     provider: "football-data",
     comp: competition.id,
     competition: competitionMeta(competition),
-    status: String(match.status || "SCHEDULED").toUpperCase(),
+    status,
     utcDate: match.utcDate,
     matchday: match.matchday ?? null,
     stage: match.stage || null,
@@ -119,6 +167,8 @@ export function normaliseFootballData(match, competition) {
     score: match.score || {},
     minute: match.minute ?? null,
     injuryTime: match.injuryTime ?? null,
+    phase: duration === "PENALTY_SHOOTOUT" ? "PENS" : status === "PAUSED" ? "HT" : status === "FINISHED" ? "FT" : duration === "EXTRA_TIME" ? "ET" : null,
+    incidents: emptyIncidents(),
   };
 }
 
@@ -157,6 +207,18 @@ export function normaliseEspn(event, competition) {
   const homeShootout = numberOrNull(home.shootoutScore);
   const awayShootout = numberOrNull(away.shootoutScore);
   const duration = homeShootout !== null || awayShootout !== null ? "PENALTY_SHOOTOUT" : "REGULAR";
+  const type = event?.status?.type || contest?.status?.type || {};
+  const period = Number(event?.status?.period ?? contest?.status?.period ?? 0);
+  const statusText = `${type.name || ""} ${type.description || ""} ${type.detail || ""}`.toUpperCase();
+  const phase = duration === "PENALTY_SHOOTOUT" || statusText.includes("PENALT") || (status === "IN_PLAY" && period >= 5)
+    ? "PENS"
+    : statusText.includes("HALFTIME") || (status === "PAUSED" && period <= 2)
+      ? "HT"
+      : (status === "IN_PLAY" || status === "PAUSED") && (statusText.includes("EXTRA") || period > 2)
+        ? "ET"
+        : status === "FINISHED"
+          ? "FT"
+          : null;
 
   return {
     id: `espn-${competition.id}-${event.id}`,
@@ -184,7 +246,43 @@ export function normaliseEspn(event, competition) {
     },
     minute: status === "IN_PLAY" ? clock.minute : null,
     injuryTime: status === "IN_PLAY" ? clock.injuryTime : null,
+    phase,
+    incidents: normaliseEspnIncidents(contest, home.team?.id, away.team?.id),
   };
+}
+
+function fixtureName(value) {
+  return tidyName(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function sameFixture(primary, enrichment) {
+  if (fixtureName(primary?.homeTeam?.name) !== fixtureName(enrichment?.homeTeam?.name)) return false;
+  if (fixtureName(primary?.awayTeam?.name) !== fixtureName(enrichment?.awayTeam?.name)) return false;
+  const primaryKickOff = new Date(primary?.utcDate || 0).getTime();
+  const enrichmentKickOff = new Date(enrichment?.utcDate || 0).getTime();
+  return Number.isFinite(primaryKickOff) && Number.isFinite(enrichmentKickOff)
+    && Math.abs(primaryKickOff - enrichmentKickOff) <= 30 * 60_000;
+}
+
+export function mergeEspnIntoFootballData(footballDataMatches, espnMatches) {
+  let enrichedCount = 0;
+  const matches = (footballDataMatches || []).map((match) => {
+    const enrichment = (espnMatches || []).find((candidate) => sameFixture(match, candidate));
+    if (!enrichment) return match;
+    enrichedCount += 1;
+    return {
+      ...match,
+      provider: "football-data+espn",
+      sourceIds: { footballData: match.sourceId, espn: enrichment.sourceId },
+      status: enrichment.status,
+      score: enrichment.score,
+      minute: enrichment.minute,
+      injuryTime: enrichment.injuryTime,
+      phase: enrichment.phase,
+      incidents: enrichment.incidents,
+    };
+  });
+  return { matches, enrichedCount };
 }
 
 export function isLiveStatus(value) {
@@ -192,8 +290,8 @@ export function isLiveStatus(value) {
   return status === "IN_PLAY" || status === "PAUSED" || status === "LIVE";
 }
 
-export function cacheTtlForMatches(matches, now = new Date()) {
-  if ((matches || []).some((match) => isLiveStatus(match.status))) return 25_000;
+export function cacheTtlForMatches(matches, now = new Date(), liveTtl = 25_000) {
+  if ((matches || []).some((match) => isLiveStatus(match.status))) return liveTtl;
   let soonest = Infinity;
   for (const match of matches || []) {
     const status = String(match.status || "").toUpperCase();
