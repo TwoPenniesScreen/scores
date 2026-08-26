@@ -298,7 +298,9 @@ export function cacheTtlForMatches(matches, now = new Date(), liveTtl = 25_000) 
     if (status !== "TIMED" && status !== "SCHEDULED") continue;
     const kickOff = new Date(match.utcDate).getTime();
     if (!Number.isFinite(kickOff)) continue;
-    soonest = Math.min(soonest, kickOff - now.getTime());
+    const untilKickOff = kickOff - now.getTime();
+    if (untilKickOff < 0 && untilKickOff >= -4 * 60 * 60 * 1000) return liveTtl;
+    if (untilKickOff >= 0) soonest = Math.min(soonest, untilKickOff);
   }
   if (soonest >= 0 && soonest <= 3 * 60 * 60 * 1000) return 60_000;
   if (soonest >= 0 && soonest <= 24 * 60 * 60 * 1000) return 10 * 60_000;
