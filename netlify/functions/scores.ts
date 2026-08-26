@@ -9,6 +9,7 @@ import {
 } from "./_shared/catalog.js";
 import {
   cacheTtlForMatches,
+  mergeEspnIntoFootballData,
   normaliseEspn,
   normaliseFootballData,
 } from "./_shared/scores-core.js";
@@ -115,17 +116,40 @@ async function fetchCompetition(competition: any, sourceMode: string, from: stri
     return { provider: "espn", matches: await fetchEspn(competition, from, to), fallback: false };
   }
 
-  try {
-    return { provider: "football-data", matches: await fetchFootballData(competition, from, to), fallback: false };
-  } catch (primaryError: any) {
-    const matches = await fetchEspn(competition, from, to);
+  const [footballDataResult, espnResult] = await Promise.allSettled([
+    fetchFootballData(competition, from, to),
+    fetchEspn(competition, from, to),
+  ]);
+
+  if (footballDataResult.status === "fulfilled") {
+    if (espnResult.status === "fulfilled") {
+      const merged = mergeEspnIntoFootballData(footballDataResult.value, espnResult.value);
+      return {
+        provider: "football-data+espn",
+        matches: merged.matches,
+        enrichedCount: merged.enrichedCount,
+        fallback: false,
+      };
+    }
     return {
-      provider: "espn",
-      matches,
-      fallback: true,
-      primaryError: primaryError?.message || String(primaryError),
+      provider: "football-data",
+      matches: footballDataResult.value,
+      enrichedCount: 0,
+      enrichmentError: `ESPN ${espnResult.reason?.message || espnResult.reason}`,
+      fallback: false,
     };
   }
+
+  if (espnResult.status === "fulfilled") {
+    return {
+      provider: "espn",
+      matches: espnResult.value,
+      fallback: true,
+      primaryError: footballDataResult.reason?.message || String(footballDataResult.reason),
+    };
+  }
+
+  throw new Error(`${footballDataResult.reason?.message || footballDataResult.reason}; ${espnResult.reason?.message || espnResult.reason}`);
 }
 
 async function storedSettings() {
@@ -178,8 +202,10 @@ async function loadCompetition(competition: any, sourceMode: string, from: strin
       cached: true,
       stale: false,
       fallback: Boolean(fresh.fallback),
+      enrichedCount: Number(fresh.enrichedCount || 0),
       fetchedAt: fresh.fetchedAt,
       error: null,
+      warning: fresh.enrichmentError || null,
     };
   }
 
@@ -190,6 +216,8 @@ async function loadCompetition(competition: any, sourceMode: string, from: strin
       matches: upstream.matches,
       fallback: Boolean(upstream.fallback),
       primaryError: upstream.primaryError || null,
+      enrichmentError: upstream.enrichmentError || null,
+      enrichedCount: Number(upstream.enrichedCount || 0),
       fetchedAt: now.toISOString(),
     };
     try {
@@ -204,8 +232,10 @@ async function loadCompetition(competition: any, sourceMode: string, from: strin
       cached: false,
       stale: false,
       fallback: value.fallback,
+      enrichedCount: value.enrichedCount,
       fetchedAt: value.fetchedAt,
       error: value.primaryError,
+      warning: value.enrichmentError,
     };
   } catch (error: any) {
     const cachedHasLive = (cached?.matches || []).some((match: any) => ["IN_PLAY", "PAUSED", "LIVE"].includes(String(match.status).toUpperCase()));
@@ -218,8 +248,10 @@ async function loadCompetition(competition: any, sourceMode: string, from: strin
       cached: Boolean(canUseScheduleCache),
       stale: Boolean(canUseScheduleCache),
       fallback: Boolean(cached?.fallback),
+      enrichedCount: Number(cached?.enrichedCount || 0),
       fetchedAt: cached?.fetchedAt || null,
       error: error?.message || String(error),
+      warning: cached?.enrichmentError || null,
     };
   }
 }
@@ -250,7 +282,8 @@ export async function scoresHandler(request: Request, _context?: Context) {
     };
 
     try {
-      await scoresStore().setJSON("health", health);
+      const isSavedSettingsCheck = !["comps", "source", "max", "pre", "post"].some((key) => url.searchParams.has(key));
+      if (isSavedSettingsCheck) await scoresStore().setJSON("health", health);
     } catch (error) {
       console.warn("Unable to save source health", error);
     }
@@ -262,7 +295,7 @@ export async function scoresHandler(request: Request, _context?: Context) {
       serverNow: now.toISOString(),
       settings,
       matches,
-      warnings: health.competitions.filter((item) => item.error),
+      warnings: health.competitions.filter((item) => item.error || item.warning),
       health,
     });
   } catch (error: any) {
