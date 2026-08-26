@@ -31,6 +31,8 @@ Each competition is cached independently. Live competitions refresh frequently, 
 
 Scorers appear once per player with all of their goal times grouped together. The away scorer order is mirrored so the layout reads consistently outwards from the central score.
 
+Scheduled matches show the teams, `vs` and kickoff time without a premature `0–0`. Score digits appear when the match enters a live state.
+
 ## Compatibility parameters
 
 Old screen URLs remain usable:
