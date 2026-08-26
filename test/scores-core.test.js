@@ -14,7 +14,7 @@ test("ESPN events normalise into the public match shape", () => {
   const match = normaliseEspn({ id:"401", date:"2026-08-26T19:00:00Z", status:{ displayClock:"67'", period:2, type:{ state:"in", name:"STATUS_IN_PROGRESS" } }, competitions:[{ competitors:[{ homeAway:"home", score:"2", team:{ id:"361", displayName:"Newcastle United" } },{ homeAway:"away", score:"1", team:{ id:"364", displayName:"Liverpool" } }], details:[
     { type:{ id:"70", text:"Goal" }, clock:{ displayValue:"25'" }, team:{ id:"361" }, scoringPlay:true, athletesInvolved:[{ shortName:"D. Burn" }] },
     { type:{ id:"70", text:"Goal" }, clock:{ displayValue:"28'" }, team:{ id:"361" }, scoringPlay:true, ownGoal:true, athletesInvolved:[{ displayName:"Yoane Wissa" }] },
-    { type:{ id:"70", text:"Goal" }, clock:{ displayValue:"12'" }, team:{ id:"364" }, scoringPlay:true, athletesInvolved:[{ shortName:"R. Giggs" }] },
+    { type:{ id:"70", text:"Goal" }, clock:{ displayValue:"12'" }, team:{ id:"364" }, scoringPlay:true, penaltyKick:true, athletesInvolved:[{ shortName:"R. Giggs" }] },
     { type:{ id:"95", text:"Red Card" }, clock:{ displayValue:"61'" }, team:{ id:"364" }, redCard:true, athletesInvolved:[{ shortName:"A. Player" }] },
   ] }] }, resolveCompetition("PL"));
   assert.equal(match.provider, "espn");
@@ -27,7 +27,18 @@ test("ESPN events normalise into the public match shape", () => {
     { name:"Burn", time:"25'", ownGoal:false, penalty:false },
     { name:"Wissa", time:"28'", ownGoal:true, penalty:false },
   ]);
+  assert.deepEqual(match.incidents.away.goals, [{ name:"Giggs", time:"12'", ownGoal:false, penalty:true }]);
   assert.deepEqual(match.incidents.away.redCards, [{ name:"Player", time:"61'" }]);
+});
+
+test("ESPN penalty shootout totals remain separate from the match score", () => {
+  const match = normaliseEspn({ id:"402", date:"2026-08-26T18:45:00Z", status:{ period:5, type:{ state:"in", name:"STATUS_SHOOTOUT" } }, competitions:[{ competitors:[
+    { homeAway:"home", score:"0", shootoutScore:4, team:{ id:"387", displayName:"Bradford City" } },
+    { homeAway:"away", score:"0", shootoutScore:2, team:{ id:"379", displayName:"Burnley" } },
+  ] }] }, resolveCompetition("LC"));
+  assert.equal(match.phase, "PENS");
+  assert.deepEqual(match.score.fullTime, { home:0, away:0 });
+  assert.deepEqual(match.score.penalties, { home:4, away:2 });
 });
 
 test("football-data matches retain friendly names", () => {
