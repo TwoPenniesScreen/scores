@@ -1,23 +1,41 @@
-# TTP Scores (clean rebuild)
+# Two Pennies live scores
 
-## Deploy (Netlify via GitHub)
-1. Put the contents of this folder at the root of your GitHub repo.
-2. In Netlify site settings, set environment variable:
-   - `FOOTBALL_DATA_API_KEY` = your football-data.org token
-3. Deploy.
+The public screen remains a fixed 1920×1080 display with the existing live and evergreen backgrounds. It can now group matches by competition and, when two competitions overlap, show two compact scoreboards.
 
-## URLs / Params
-- `/` shows the screen.
-- `?debug=1` shows the debug panel + status dot.
-- `?comps=PL,ELC,CL,WC,EC`
+## Admin
+
+Open `/admin.html` to manage:
+
+- hybrid, ESPN-only or football-data-only source mode;
+- Newcastle and England competitions;
+- pre-match and post-match display windows;
+- one or two simultaneous competition boards;
+- competition marks and highlighted teams;
+- source health and fallback status.
+
+Settings are saved in Netlify Blobs and take effect without changing the public screen address.
+
+## Netlify environment variables
+
+- `SCORES_ADMIN_PASSWORD` — required to save admin settings. `ADMIN_PASSWORD` is accepted as a fallback.
+- `FOOTBALL_DATA_API_KEY` — optional in ESPN-only mode; retained for hybrid and football-data modes.
+
+## Source behaviour
+
+- **Hybrid** prefers football-data for competitions present in the current account and uses ESPN for additional competitions or as a fallback.
+- **ESPN only** makes no football-data requests and is intended to let the free feed be assessed before changing a subscription.
+- **football-data only** never uses ESPN; unsupported competitions report a health warning and do not make the whole screen fail.
+
+Each competition is cached independently. Live competitions refresh frequently, fixtures close to kick-off refresh more often, and idle competitions refresh only every six hours. A failed live refresh is never allowed to leave a stale live score on screen.
+
+## Compatibility parameters
+
+Old screen URLs remain usable:
+
+- `?comps=PL,CL,EC,WC`
 - `?max=5`
-- `?pre=15` (minutes before KO to show upcoming)
-- `?post=15` (minutes after estimated final whistle to keep results)
-- `?highlight=67` (comma-separated team IDs to pin while live)
-
-## Reliability behaviour
-- Live matches refresh every 30 seconds.
-- The function keeps only a short 35-second warm cache to control upstream usage.
-- The cache is not a last-known-good store and is never updated from a failed request.
-- If any selected competition fails or times out, the scores are cleared and the screen returns to its generic welcome slide.
-- A failed competition is never silently omitted from an otherwise successful response.
+- `?pre=60`
+- `?post=120`
+- `?highlight=67`
+- `?mode=live` or `?mode=welcome`
+- `?debug=1`

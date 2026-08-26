@@ -1,207 +1,71 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Two Pennies URL Builder</title>
-
-<style>
-body{
-  font-family:Arial,sans-serif;
-  max-width:800px;
-  margin:40px auto;
-  padding:20px;
-}
-
-h1{
-  margin-bottom:30px;
-}
-
-.row{
-  margin-bottom:18px;
-}
-
-label{
-  display:block;
-  margin-bottom:6px;
-  font-weight:bold;
-}
-
-input[type="number"],
-input[type="text"]{
-  width:220px;
-}
-
-.url{
-  width:100%;
-  min-height:120px;
-  font-family:monospace;
-  padding:10px;
-}
-
-button{
-  padding:10px 18px;
-  cursor:pointer;
-}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Two Pennies Scores — Settings</title>
+  <style>
+    :root{--bg:#0b0b0b;--panel:#181818;--panel2:#202020;--line:#343434;--text:#f5f5f5;--muted:#aaa;--gold:#deb968;--gold2:#f1d38d;--good:#42c77a;--warn:#efa940;--bad:#ee6262}
+    *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;color:var(--text);background:linear-gradient(180deg,#0b0b0b,#111);font:16px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+    button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1480px;margin:auto;padding:28px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:24px}.topbar h1{margin:0;font-size:clamp(28px,4vw,46px);letter-spacing:-.04em}.topbar p{margin:5px 0 0;color:var(--muted)}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}.button{min-height:44px;padding:10px 17px;border:1px solid #484848;border-radius:11px;color:#fff;background:#242424;font-weight:700}.button:hover{background:#2d2d2d}.button.primary{border-color:var(--gold);color:#111;background:var(--gold)}.button.primary:hover{background:var(--gold2)}.button:disabled{cursor:not-allowed;opacity:.45}
+    .notice{display:none;margin-bottom:20px;padding:14px 16px;border:1px solid #6f5428;border-radius:12px;background:#2a2114;color:#f5d99c}.notice.show{display:block}.grid{display:grid;grid-template-columns:minmax(480px,1fr) minmax(500px,1.2fr);gap:22px;align-items:start}.stack{display:grid;gap:18px}.card{border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 16px 40px rgba(0,0,0,.22);overflow:hidden}.cardHead{padding:20px 22px 13px}.cardHead h2{margin:0;font-size:23px}.cardHead p{margin:4px 0 0;color:var(--muted)}.cardBody{padding:0 22px 22px}
+    .choiceGrid{display:grid;gap:10px}.choice{position:relative;display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:start;padding:14px;border:1px solid #3b3b3b;border-radius:12px;background:var(--panel2)}.choice:has(input:checked){border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}.choice input{margin-top:4px}.choice strong{display:block}.choice small{display:block;margin-top:2px;color:var(--muted)}
+    .sectionLabel{margin:18px 0 9px;color:var(--gold2);font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.competitionList{display:grid;grid-template-columns:1fr 1fr;gap:9px}.competition{display:grid;grid-template-columns:auto 1fr auto;gap:9px;align-items:center;min-height:48px;padding:9px 10px;border:1px solid #363636;border-radius:11px;background:#202020}.competition:has(input:checked){border-color:#696969}.competition input{width:18px;height:18px}.competition span{font-weight:650}.badges{display:flex;gap:4px}.badge{padding:3px 6px;border:1px solid #4b4b4b;border-radius:999px;color:#bbb;font-size:10px;font-weight:800;letter-spacing:.04em}.badge.fd{border-color:#446b91;color:#8cc8ff}.badge.espn{border-color:#714d4d;color:#f4a6a6}
+    .fieldGrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}.field label,.wideField label{display:block;margin-bottom:6px;font-weight:750}.field small,.wideField small{display:block;margin-top:5px;color:var(--muted)}input[type="number"],input[type="text"]{width:100%;height:46px;padding:0 12px;border:1px solid #444;border-radius:9px;color:#fff;background:#0f0f0f}.toggleRow{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:13px 0;border-top:1px solid #303030}.toggleRow:first-child{border-top:0}.toggleRow input{width:20px;height:20px}.highlightGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.highlight{display:flex;gap:8px;align-items:center;padding:11px;border:1px solid #3b3b3b;border-radius:10px;background:#202020}.highlight:has(input:checked){border-color:var(--gold)}
+    .previewBar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 22px 14px}.segmented{display:flex;padding:4px;border:1px solid #3c3c3c;border-radius:11px;background:#101010}.segmented button{padding:8px 11px;border:0;border-radius:8px;color:#bbb;background:transparent;font-weight:750}.segmented button.active{color:#111;background:var(--gold)}.previewFrame{display:block;width:100%;aspect-ratio:16/9;border:0;background:#000}
+    .healthList{display:grid;gap:8px}.healthItem{display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid #343434;border-radius:10px;background:#202020}.healthDot{width:10px;height:10px;border-radius:50%;background:var(--muted)}.healthDot.good{background:var(--good)}.healthDot.warn{background:var(--warn)}.healthDot.bad{background:var(--bad)}.healthName{font-weight:700}.healthMeta{color:var(--muted);font-size:13px;text-align:right}.empty{padding:18px;color:var(--muted);text-align:center}
+    .saveBar{position:sticky;bottom:14px;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:18px;padding:13px 16px;border:1px solid #4a4030;border-radius:14px;background:rgba(27,24,18,.94);backdrop-filter:blur(12px)}.saveStatus{color:var(--muted)}.saveStatus.good{color:var(--good)}.saveStatus.bad{color:var(--bad)}
+    dialog{width:min(430px,calc(100% - 32px));padding:0;border:1px solid #444;border-radius:17px;color:#fff;background:#181818;box-shadow:0 25px 100px #000}dialog::backdrop{background:rgba(0,0,0,.82);backdrop-filter:blur(4px)}.dialogBody{padding:24px}.dialogBody h2{margin:0 0 7px}.dialogBody p{margin:0 0 18px;color:var(--muted)}.dialogActions{display:flex;justify-content:flex-end;gap:10px;margin-top:15px}.loginError{min-height:22px;margin-top:8px;color:var(--bad)}
+    @media(max-width:1050px){.shell{padding:18px}.grid{grid-template-columns:1fr}.previewCard{grid-row:1}.competitionList{grid-template-columns:1fr 1fr}}
+    @media(max-width:620px){.topbar{align-items:flex-start;flex-direction:column}.fieldGrid,.competitionList{grid-template-columns:1fr}.highlightGrid{grid-template-columns:1fr}.previewBar{align-items:flex-start;flex-direction:column}.saveBar{align-items:stretch;flex-direction:column}.saveBar .button{width:100%}}
+  </style>
 </head>
 <body>
-
-<h1>Two Pennies Scoreboard URL Builder</h1>
-
-<div class="row">
-  <label>Competitions</label>
-
-  <input type="checkbox" id="pl" checked> PL
-  <input type="checkbox" id="cl" checked> CL
-  <input type="checkbox" id="ec"> EC
-  <input type="checkbox" id="wc"> WC
-</div>
-
-<div class="row">
-  <label>Maximum Rows</label>
-  <input id="max" type="number" value="5">
-</div>
-
-<div class="row">
-  <label>Minutes Before Kick Off</label>
-  <input id="pre" type="number" value="60">
-</div>
-
-<div class="row">
-  <label>Minutes After Full Time</label>
-  <input id="post" type="number" value="120">
-</div>
-
-<div class="row">
-
-  <label>Highlights</label>
-
-  <label>
-
-    <input type="checkbox" id="nufc" checked>
-
-    Newcastle
-
-  </label>
-
-  <label>
-
-    <input type="checkbox" id="england">
-
-    England
-
-  </label>
-
-  <label>
-
-    <input type="checkbox" id="scotland">
-
-    Scotland
-
-  </label>
-
-</div>
-
-<div class="row">
-  <label>Mode</label>
-
-  <select id="mode">
-    <option value="">AUTO</option>
-    <option value="live">LIVE</option>
-    <option value="welcome">WELCOME</option>
-  </select>
-</div>
-
-<div class="row">
-  <label>
-    <input type="checkbox" id="debug">
-    Debug
-  </label>
-</div>
-
-<div class="row">
-  <button onclick="copyUrl()">Copy URL</button>
-</div>
-
-<div class="row">
-  <textarea id="url" class="url"></textarea>
-</div>
-
-<script>
-
-function buildUrl(){
-
-  const comps = [];
-
-  if(document.getElementById('pl').checked) comps.push('PL');
-  if(document.getElementById('cl').checked) comps.push('CL');
-  if(document.getElementById('ec').checked) comps.push('EC');
-  if(document.getElementById('wc').checked) comps.push('WC');
-const max = document.getElementById('max').value;
-
-const pre = document.getElementById('pre').value;
-
-const post = document.getElementById('post').value;
-
-const mode = document.getElementById('mode').value;
-
-const debug = document.getElementById('debug').checked;
-
-const highlights = [];
-
-if(document.getElementById('nufc').checked) highlights.push('67');
-
-if(document.getElementById('england').checked) highlights.push('770');
-
-if(document.getElementById('scotland').checked) highlights.push('8873');
-
-  const params = new URLSearchParams();
-
-  params.set('comps', comps.join(','));
-  params.set('max', max);
-  params.set('pre', pre);
-  params.set('post', post);
-if(highlights.length){
-
-  params.set('highlight', highlights.join(','));
-  }
-
-  if(mode){
-    params.set('mode', mode);
-  }
-
-  if(debug){
-    params.set('debug', '1');
-  }
-
-  const url =
-    `${window.location.origin}/?${params.toString()}`;
-
-  document.getElementById('url').value = url;
-}
-
-function copyUrl(){
-
-  const txt = document.getElementById('url');
-
-  txt.select();
-  txt.setSelectionRange(0,99999);
-
-  navigator.clipboard.writeText(txt.value);
-
-  alert('URL copied');
-}
-
-document
-  .querySelectorAll('input,select')
-  .forEach(el=>{
-    el.addEventListener('change',buildUrl);
-    el.addEventListener('input',buildUrl);
-  });
-
-buildUrl();
-
-</script>
-
+  <main class="shell">
+    <header class="topbar"><div><h1>Live scores</h1><p>Choose the competitions once. The screen handles the rest.</p></div><div class="actions"><button class="button" id="copyDisplay">Copy screen address</button><button class="button" id="logout" hidden>Sign out</button></div></header>
+    <div class="notice" id="setupNotice"><strong>One setup step remains:</strong> add <code>SCORES_ADMIN_PASSWORD</code> in Netlify under Project configuration → Environment variables, then redeploy.</div>
+    <div class="grid">
+      <div class="stack">
+        <section class="card"><div class="cardHead"><h2>Score provider</h2><p>Hybrid keeps your existing paid feed and fills its gaps. ESPN-only lets you test a free setup before changing any subscription.</p></div><div class="cardBody"><div class="choiceGrid" id="sourceChoices">
+          <label class="choice"><input type="radio" name="sourceMode" value="hybrid"><span><strong>Hybrid — recommended</strong><small>football-data where available; ESPN for cups, qualifiers and automatic fallback.</small></span></label>
+          <label class="choice"><input type="radio" name="sourceMode" value="espn"><span><strong>ESPN only — free trial</strong><small>No football-data requests. Feed health remains visible here so reliability can be judged first.</small></span></label>
+          <label class="choice"><input type="radio" name="sourceMode" value="football-data"><span><strong>football-data only</strong><small>Keeps the current provider only. Competitions outside the subscription will not appear.</small></span></label>
+        </div></div></section>
+        <section class="card"><div class="cardHead"><h2>Competitions</h2><p>These include competitions Newcastle or England are in—or could enter.</p></div><div class="cardBody" id="competitionGroups"></div></section>
+        <section class="card"><div class="cardHead"><h2>Screen behaviour</h2><p>The evergreen slide remains untouched whenever no selected match is in its display window.</p></div><div class="cardBody">
+          <div class="fieldGrid"><div class="field"><label for="preMinutes">Show before kick-off</label><input id="preMinutes" type="number" min="0" max="2880"><small>Minutes</small></div><div class="field"><label for="postMinutes">Hide after the match</label><input id="postMinutes" type="number" min="0" max="720"><small>Minutes after estimated full time</small></div><div class="field"><label for="maxRows">Rows per board</label><input id="maxRows" type="number" min="1" max="8"><small>Extra games rotate automatically</small></div><div class="field"><label for="maxBoards">Boards on screen</label><input id="maxBoards" type="number" min="1" max="2"><small>Maximum two when competitions overlap</small></div></div>
+          <div class="toggleRow"><span><strong>Competition logo</strong><br><small style="color:var(--muted)">Uses the existing white transparent artwork where available.</small></span><input id="showCompetitionLogo" type="checkbox"></div>
+        </div></section>
+        <section class="card"><div class="cardHead"><h2>Highlighted teams</h2><p>A live highlighted team stays at the top of its competition.</p></div><div class="cardBody"><div class="highlightGrid">
+          <label class="highlight"><input type="checkbox" name="highlightPreset" value="Newcastle"> Newcastle</label><label class="highlight"><input type="checkbox" name="highlightPreset" value="England"> England</label><label class="highlight"><input type="checkbox" name="highlightPreset" value="Scotland"> Scotland</label>
+        </div><div class="wideField" style="margin-top:13px"><label for="customHighlights">Other teams</label><input id="customHighlights" type="text" placeholder="One or more names, separated by commas"><small>Use the friendly name shown on the scoreboard.</small></div></div></section>
+      </div>
+      <div class="stack">
+        <section class="card previewCard"><div class="cardHead"><h2>Screen preview</h2><p>The normal single-board appearance is retained; only the competition heading is new.</p></div><div class="previewBar"><div class="segmented" id="previewButtons"><button data-preview="welcome">Evergreen</button><button class="active" data-preview="one">One competition</button><button data-preview="two">Two competitions</button></div><span style="color:var(--muted);font-size:13px">16:9 locked</span></div><iframe class="previewFrame" id="previewFrame" title="Score screen preview" src="/?preview=one"></iframe></section>
+        <section class="card"><div class="cardHead"><h2>Feed health</h2><p>Shows which provider supplied each competition and whether fallback was needed.</p></div><div class="cardBody"><div class="healthList" id="healthList"><div class="empty">The first score check will populate this list.</div></div></div></section>
+      </div>
+    </div>
+    <div class="saveBar"><span class="saveStatus" id="saveStatus">Changes take effect on the public screen after saving.</span><button class="button primary" id="save">Save score settings</button></div>
+  </main>
+  <dialog id="loginDialog"><form class="dialogBody" id="loginForm"><h2>Score settings</h2><p>Enter the admin password to make changes.</p><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" style="width:100%;height:46px;padding:0 12px;border:1px solid #444;border-radius:9px;color:#fff;background:#0f0f0f"><div class="loginError" id="loginError"></div><div class="dialogActions"><button class="button primary" type="submit">Sign in</button></div></form></dialog>
+  <script>
+    const state={configured:false,authenticated:false,settings:null,competitions:[],health:null};
+    const setupNotice=document.getElementById("setupNotice"),competitionGroups=document.getElementById("competitionGroups"),healthList=document.getElementById("healthList"),save=document.getElementById("save"),saveStatus=document.getElementById("saveStatus"),logout=document.getElementById("logout"),loginDialog=document.getElementById("loginDialog"),loginForm=document.getElementById("loginForm"),loginError=document.getElementById("loginError"),previewFrame=document.getElementById("previewFrame");
+    async function api(method="GET",body){const response=await fetch("/api/settings",{method,headers:body?{"content-type":"application/json"}:{},body:body?JSON.stringify(body):undefined,cache:"no-store"}),data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.error||`Request failed (${response.status})`);return data}
+    function renderCompetitions(){competitionGroups.innerHTML="";const groups=new Map;for(const competition of state.competitions){if(!groups.has(competition.group))groups.set(competition.group,[]);groups.get(competition.group).push(competition)}for(const[group,competitions]of groups){const label=document.createElement("div");label.className="sectionLabel";label.textContent=group;const list=document.createElement("div");list.className="competitionList";for(const competition of competitions){const item=document.createElement("label");item.className="competition";item.innerHTML=`<input type="checkbox" name="competition" value="${competition.id}"><span></span><span class="badges"></span>`;item.querySelector("span").textContent=competition.shortName;const badges=item.querySelector(".badges");if(competition.sources.footballData)badges.insertAdjacentHTML("beforeend",'<span class="badge fd">FD</span>');if(competition.sources.espn)badges.insertAdjacentHTML("beforeend",'<span class="badge espn">ESPN</span>');list.appendChild(item)}competitionGroups.append(label,list)}}
+    function applySettings(){const settings=state.settings;document.querySelector(`input[name="sourceMode"][value="${settings.sourceMode}"]`).checked=true;document.querySelectorAll('input[name="competition"]').forEach(input=>input.checked=settings.competitions.includes(input.value));document.getElementById("preMinutes").value=settings.preMinutes;document.getElementById("postMinutes").value=settings.postMinutes;document.getElementById("maxRows").value=settings.maxRows;document.getElementById("maxBoards").value=settings.maxBoards;document.getElementById("showCompetitionLogo").checked=settings.showCompetitionLogo;const presets=["Newcastle","England","Scotland"];document.querySelectorAll('input[name="highlightPreset"]').forEach(input=>input.checked=settings.highlightTeams.includes(input.value));document.getElementById("customHighlights").value=settings.highlightTeams.filter(name=>!presets.includes(name)).join(", ")}
+    function collectSettings(){const presets=[...document.querySelectorAll('input[name="highlightPreset"]:checked')].map(input=>input.value),custom=document.getElementById("customHighlights").value.split(",").map(value=>value.trim()).filter(Boolean);return{sourceMode:document.querySelector('input[name="sourceMode"]:checked').value,competitions:[...document.querySelectorAll('input[name="competition"]:checked')].map(input=>input.value),preMinutes:document.getElementById("preMinutes").value,postMinutes:document.getElementById("postMinutes").value,maxRows:document.getElementById("maxRows").value,maxBoards:document.getElementById("maxBoards").value,showCompetitionLogo:document.getElementById("showCompetitionLogo").checked,highlightTeams:[...new Set([...presets,...custom])]}}
+    function renderHealth(){healthList.innerHTML="";if(!state.health?.competitions?.length){healthList.innerHTML='<div class="empty">The first score check will populate this list.</div>';return}const names=new Map(state.competitions.map(item=>[item.id,item.shortName]));for(const item of state.health.competitions){const row=document.createElement("div"),status=item.error?(item.matchCount?"warn":"bad"):"good",provider=item.provider==="football-data"?"football-data":"ESPN";row.className="healthItem";row.innerHTML=`<span class="healthDot ${status}"></span><span class="healthName"></span><span class="healthMeta"></span>`;row.querySelector(".healthName").textContent=names.get(item.competition)||item.competition;row.querySelector(".healthMeta").textContent=item.error?`${provider} · ${item.stale?"cached schedule":"check failed"}`:`${provider}${item.fallback?" fallback":""} · ${item.matchCount} matches`;healthList.appendChild(row)}}
+    function setSaveStatus(message,type=""){saveStatus.textContent=message;saveStatus.className=`saveStatus ${type}`}
+    async function load(){try{const data=await api();Object.assign(state,data);renderCompetitions();applySettings();renderHealth();setupNotice.classList.toggle("show",!state.configured);save.disabled=!state.authenticated;logout.hidden=!state.authenticated;if(state.configured&&!state.authenticated)loginDialog.showModal()}catch(error){setSaveStatus(error.message,"bad")}}
+    loginForm.addEventListener("submit",async event=>{event.preventDefault();loginError.textContent="";try{await api("POST",{password:document.getElementById("password").value});loginDialog.close();await load();setSaveStatus("Signed in.","good")}catch(error){loginError.textContent=error.message}});
+    save.addEventListener("click",async()=>{save.disabled=true;setSaveStatus("Saving…");try{const data=await api("PUT",collectSettings());state.settings=data.settings;applySettings();setSaveStatus("Saved. The public screen will use these settings on its next check.","good")}catch(error){setSaveStatus(error.message,"bad")}finally{save.disabled=!state.authenticated}});
+    logout.addEventListener("click",async()=>{await api("DELETE");location.reload()});
+    document.getElementById("copyDisplay").addEventListener("click",async()=>{await navigator.clipboard.writeText(`${location.origin}/`);setSaveStatus("Public screen address copied.","good")});
+    document.getElementById("previewButtons").addEventListener("click",event=>{const button=event.target.closest("button[data-preview]");if(!button)return;document.querySelectorAll("#previewButtons button").forEach(item=>item.classList.toggle("active",item===button));previewFrame.src=`/?preview=${button.dataset.preview}&v=${Date.now()}`});
+    load();
+  </script>
 </body>
 </html>
