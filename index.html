@@ -37,12 +37,12 @@
     .incidentList,.incidentItem{display:flex;align-items:center}.incidentList{gap:10px}.incidentItem{gap:5px}.teamPanel.home .incidentList{justify-content:flex-end}.teamPanel.away .incidentList{justify-content:flex-start}
     .goalIcon{font-size:14px;line-height:1;filter:grayscale(1)}.redCardIcon{display:inline-block;width:9px;height:13px;border:1px solid rgba(255,255,255,.42);border-radius:1px;background:#df1f2d;box-shadow:0 1px 2px rgba(0,0,0,.5)}
     .boards.multi .incident{font-size:11px}.boards.multi .incidentList{gap:7px}.boards.multi .incidentItem{gap:4px}.boards.multi .goalIcon{font-size:11px}.boards.multi .redCardIcon{width:7px;height:10px}
-    .scoreLine{grid-column:2;display:flex;flex-direction:column;align-items:center}
+    .scoreLine{position:relative;grid-column:2;align-self:stretch;display:flex;align-items:center;justify-content:center}
     .scoreTop{display:grid;grid-template-columns:54px 54px 54px;align-items:baseline;justify-items:center;line-height:1}
     .score{min-width:24px;display:inline-block;font-size:52px;font-weight:700;line-height:.9;text-align:center;font-variant-numeric:tabular-nums}
     .vs{font-size:24px;font-weight:500;line-height:1;letter-spacing:.5px;opacity:.92}
-    .status{width:162px;margin-top:6px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:20px;font-weight:500;text-align:center;font-variant-numeric:tabular-nums}
-    .boards.multi .scoreTop{grid-template-columns:46px 46px 46px}.boards.multi .score{font-size:41px}.boards.multi .vs{font-size:20px}.boards.multi .status{width:138px;margin-top:3px;font-size:17px}
+    .status{position:absolute;top:calc(50% + 24px);width:162px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:20px;font-weight:500;line-height:1;text-align:center;font-variant-numeric:tabular-nums}
+    .boards.multi .scoreTop{grid-template-columns:46px 46px 46px}.boards.multi .score{font-size:41px}.boards.multi .vs{font-size:20px}.boards.multi .status{top:calc(50% + 20px);width:138px;font-size:17px}
     .pageDots{min-height:10px;display:flex;justify-content:center;gap:7px}.pageDots:empty{display:none}.pageDot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3)}.pageDot.active{background:#fff}
     #statusDot{position:fixed;top:6px;left:6px;z-index:1000000;width:12px;height:12px;border-radius:50%;background:transparent;pointer-events:none}
     .debug{position:fixed;top:90px;left:24px;z-index:999999;display:none;min-width:190px;gap:10px;flex-direction:column;padding:10px;border:1px solid rgba(255,255,255,.22);border-radius:14px;background:rgba(0,0,0,.72);font:14px system-ui,sans-serif;text-transform:none;backdrop-filter:blur(6px)}
