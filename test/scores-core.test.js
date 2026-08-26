@@ -67,6 +67,7 @@ test("hybrid enrichment ignores an unsafe fixture match", () => {
 test("poll cache ramps up around kickoff", () => {
   const now = new Date("2026-08-26T12:00:00Z");
   assert.equal(cacheTtlForMatches([{ status:"IN_PLAY" }], now), 25_000);
+  assert.equal(cacheTtlForMatches([{ status:"TIMED", utcDate:"2026-08-26T11:40:00Z" }], now), 25_000);
   assert.equal(cacheTtlForMatches([{ status:"TIMED", utcDate:"2026-08-26T14:00:00Z" }], now), 60_000);
   assert.equal(cacheTtlForMatches([{ status:"TIMED", utcDate:"2026-08-27T11:00:00Z" }], now), 10*60_000);
   assert.equal(cacheTtlForMatches([], now), 6*60*60_000);
