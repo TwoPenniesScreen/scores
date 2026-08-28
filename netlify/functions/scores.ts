@@ -1,5 +1,6 @@
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
+import { createHash } from "node:crypto";
 import {
   COMPETITION_BY_ID,
   DEFAULT_SETTINGS,
@@ -9,14 +10,17 @@ import {
 } from "./_shared/catalog.js";
 import {
   cacheTtlForMatches,
+  compactDisplayMatch,
   mergeEspnIntoFootballData,
   normaliseEspn,
   normaliseFootballData,
+  selectDisplayMatches,
 } from "./_shared/scores-core.js";
 
 const FOOTBALL_DATA_BASE = "https://api.football-data.org/v4";
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
 const UPSTREAM_TIMEOUT_MS = 9_000;
+const competitionLoads = new Map<string, Promise<any>>();
 
 function response(body: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
@@ -183,7 +187,7 @@ function safeCachedMatches(cached: any, now: Date) {
   return now.getTime() - fetchedAt.getTime() < ttl ? cached : null;
 }
 
-async function loadCompetition(competition: any, sourceMode: string, from: string, to: string, now: Date) {
+async function loadCompetitionOnce(competition: any, sourceMode: string, from: string, to: string, now: Date) {
   const store = scoresStore();
   const cacheKey = `feed:${sourceMode}:${competition.id}`;
   let cached: any = null;
@@ -206,6 +210,8 @@ async function loadCompetition(competition: any, sourceMode: string, from: strin
       fetchedAt: fresh.fetchedAt,
       error: null,
       warning: fresh.enrichmentError || null,
+      checked: false,
+      usable: true,
     };
   }
 
@@ -236,6 +242,8 @@ async function loadCompetition(competition: any, sourceMode: string, from: strin
       fetchedAt: value.fetchedAt,
       error: value.primaryError,
       warning: value.enrichmentError,
+      checked: true,
+      usable: true,
     };
   } catch (error: any) {
     const cachedHasLive = (cached?.matches || []).some((match: any) => ["IN_PLAY", "PAUSED", "LIVE"].includes(String(match.status).toUpperCase()));
@@ -252,7 +260,22 @@ async function loadCompetition(competition: any, sourceMode: string, from: strin
       fetchedAt: cached?.fetchedAt || null,
       error: error?.message || String(error),
       warning: cached?.enrichmentError || null,
+      checked: true,
+      usable: false,
     };
+  }
+}
+
+async function loadCompetition(competition: any, sourceMode: string, from: string, to: string, now: Date) {
+  const key = `${sourceMode}:${competition.id}:${from}:${to}`;
+  const existing = competitionLoads.get(key);
+  if (existing) return { ...await existing, checked: false };
+  const pending = loadCompetitionOnce(competition, sourceMode, from, to, now);
+  competitionLoads.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (competitionLoads.get(key) === pending) competitionLoads.delete(key);
   }
 }
 
@@ -271,11 +294,19 @@ export async function scoresHandler(request: Request, _context?: Context) {
     const results = await Promise.all(
       competitions.map((competition: any) => loadCompetition(competition, settings.sourceMode, range.from, range.to, now)),
     );
-    const matches = results.flatMap((result) => result.matches);
+    const allMatches = results.flatMap((result) => result.matches);
+    const displayView = url.searchParams.get("view") === "display";
+    const legacyHighlightIds = (url.searchParams.get("highlight") || "")
+      .split(",")
+      .map(Number)
+      .filter(Number.isFinite);
+    const matches = displayView
+      ? selectDisplayMatches(allMatches, settings, now, url.searchParams.get("mode") === "live", legacyHighlightIds).map(compactDisplayMatch)
+      : allMatches;
     const health = {
       checkedAt: now.toISOString(),
       sourceMode: settings.sourceMode,
-      competitions: results.map(({ matches: competitionMatches, ...result }) => ({
+      competitions: results.map(({ matches: competitionMatches, checked, usable, ...result }) => ({
         ...result,
         matchCount: competitionMatches.length,
       })),
@@ -283,9 +314,37 @@ export async function scoresHandler(request: Request, _context?: Context) {
 
     try {
       const isSavedSettingsCheck = !["comps", "source", "max", "pre", "post"].some((key) => url.searchParams.has(key));
-      if (isSavedSettingsCheck) await scoresStore().setJSON("health", health);
+      if (isSavedSettingsCheck && results.some((result) => result.checked)) await scoresStore().setJSON("health", health);
     } catch (error) {
       console.warn("Unable to save source health", error);
+    }
+
+    if (displayView) {
+      const displayBody = JSON.stringify({
+        ok: true,
+        settings,
+        matches,
+        health: {
+          competitions: results.map(({ competition, error, warning, fallback, stale, usable, matches: competitionMatches }) => ({
+            competition,
+            error,
+            warning,
+            fallback,
+            stale,
+            usable,
+            matchCount: competitionMatches.length,
+          })),
+        },
+      });
+      const etag = `"${createHash("sha256").update(displayBody).digest("base64url")}"`;
+      const headers = {
+        "cache-control": "no-store",
+        etag,
+      };
+      if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers });
+      return new Response(displayBody, {
+        headers: { ...headers, "content-type": "application/json; charset=utf-8" },
+      });
     }
 
     return response({

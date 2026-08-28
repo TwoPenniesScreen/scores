@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { resolveCompetition } from "../netlify/functions/_shared/catalog.js";
-import { cacheTtlForMatches, matchesTeamName, mergeEspnIntoFootballData, normaliseEspn, normaliseFootballData, tidyName } from "../netlify/functions/_shared/scores-core.js";
+import { cacheTtlForMatches, compactDisplayMatch, matchesTeamName, mergeEspnIntoFootballData, normaliseEspn, normaliseFootballData, selectDisplayMatches, tidyName } from "../netlify/functions/_shared/scores-core.js";
 
 test("friendly names are provider independent", () => {
   assert.equal(tidyName("Newcastle United FC"), "Newcastle");
@@ -82,4 +82,80 @@ test("poll cache ramps up around kickoff", () => {
   assert.equal(cacheTtlForMatches([{ status:"TIMED", utcDate:"2026-08-26T14:00:00Z" }], now), 60_000);
   assert.equal(cacheTtlForMatches([{ status:"TIMED", utcDate:"2026-08-27T11:00:00Z" }], now), 10*60_000);
   assert.equal(cacheTtlForMatches([], now), 6*60*60_000);
+});
+
+test("display payload keeps relevant, overdue and next matches without the broad schedule", () => {
+  const now = new Date("2026-08-26T12:00:00Z");
+  const settings = { competitions:["pl"], highlightTeams:["Newcastle"], preMinutes:60, postMinutes:120, maxRows:5 };
+  const match = (id, status, utcDate) => ({ id, comp:"pl", status, utcDate, score:{ duration:"REGULAR" }, homeTeam:{ name:"Home" }, awayTeam:{ name:"Away" } });
+  const matches = [
+    match("live", "IN_PLAY", "2026-08-26T11:00:00Z"),
+    match("pre", "TIMED", "2026-08-26T12:30:00Z"),
+    match("overdue", "TIMED", "2026-08-26T10:00:00Z"),
+    match("next", "TIMED", "2026-08-28T12:00:00Z"),
+    match("later", "TIMED", "2026-08-29T12:00:00Z"),
+    match("old", "FINISHED", "2026-08-25T12:00:00Z"),
+  ];
+  assert.deepEqual(selectDisplayMatches(matches, settings, now).map(({ id }) => id), ["live", "pre", "overdue", "next"]);
+});
+
+test("forced-live display preserves highlighted fallback ordering and row limit", () => {
+  const now = new Date("2026-08-26T12:00:00Z");
+  const settings = { competitions:["pl"], highlightTeams:["Newcastle"], preMinutes:60, postMinutes:120, maxRows:2 };
+  const matches = [
+    { id:"soon", comp:"pl", status:"TIMED", utcDate:"2026-08-28T12:00:00Z", homeTeam:{ name:"Everton" }, awayTeam:{ name:"Liverpool" } },
+    { id:"highlight", comp:"pl", status:"TIMED", utcDate:"2026-08-30T12:00:00Z", homeTeam:{ name:"Newcastle" }, awayTeam:{ name:"Arsenal" } },
+    { id:"later", comp:"pl", status:"TIMED", utcDate:"2026-08-29T12:00:00Z", homeTeam:{ name:"Chelsea" }, awayTeam:{ name:"Fulham" } },
+  ];
+  assert.deepEqual(selectDisplayMatches(matches, settings, now, true).map(({ id }) => id), ["highlight", "soon"]);
+});
+
+test("forced-live display preserves legacy highlighted team-id priority", () => {
+  const now = new Date("2026-08-26T12:00:00Z");
+  const settings = { competitions:["pl"], highlightTeams:[], preMinutes:60, postMinutes:120, maxRows:1 };
+  const matches = [
+    { id:"soon", comp:"pl", status:"TIMED", utcDate:"2026-08-27T12:00:00Z", homeTeam:{ id:1, name:"Everton" }, awayTeam:{ id:2, name:"Liverpool" } },
+    { id:"legacy", comp:"pl", status:"TIMED", utcDate:"2026-08-29T12:00:00Z", homeTeam:{ id:67, name:"Other" }, awayTeam:{ id:3, name:"Arsenal" } },
+  ];
+  assert.deepEqual(selectDisplayMatches(matches, settings, now, true, [67]).map(({ id }) => id), ["legacy"]);
+});
+
+test("forced-live display retains scheduled fixtures more than four hours overdue", () => {
+  const now = new Date("2026-08-26T12:00:00Z");
+  const settings = { competitions:["pl"], highlightTeams:[], preMinutes:60, postMinutes:120, maxRows:2 };
+  const matches = [
+    { id:"overdue", comp:"pl", status:"TIMED", utcDate:"2026-08-26T05:00:00Z", homeTeam:{ name:"Everton" }, awayTeam:{ name:"Liverpool" } },
+  ];
+  assert.deepEqual(selectDisplayMatches(matches, settings, now, true).map(({ id }) => id), ["overdue"]);
+  assert.deepEqual(selectDisplayMatches(matches, settings, now, false), []);
+});
+
+test("forced-live display uses browser-equivalent settings highlight semantics", () => {
+  const now = new Date("2026-08-26T12:00:00Z");
+  const settings = { competitions:["pl"], highlightTeams:["Nott m Forest"], preMinutes:60, postMinutes:120, maxRows:1 };
+  const matches = [
+    { id:"soon", comp:"pl", status:"TIMED", utcDate:"2026-08-27T12:00:00Z", homeTeam:{ name:"Everton" }, awayTeam:{ name:"Liverpool" } },
+    { id:"highlight", comp:"pl", status:"TIMED", utcDate:"2026-08-29T12:00:00Z", homeTeam:{ name:"Nott'm Forest" }, awayTeam:{ name:"Arsenal" } },
+  ];
+  assert.deepEqual(selectDisplayMatches(matches, settings, now, true).map(({ id }) => id), ["highlight"]);
+});
+
+test("forced-live display preserves competition order before kickoff order", () => {
+  const now = new Date("2026-08-26T12:00:00Z");
+  const settings = { competitions:["cup","pl"], highlightTeams:[], preMinutes:60, postMinutes:120, maxRows:3 };
+  const matches = [
+    { id:"pl-soon", comp:"pl", status:"TIMED", utcDate:"2026-08-27T12:00:00Z", homeTeam:{ name:"Everton" }, awayTeam:{ name:"Liverpool" } },
+    { id:"cup-later", comp:"cup", status:"TIMED", utcDate:"2026-08-28T12:00:00Z", homeTeam:{ name:"Chelsea" }, awayTeam:{ name:"Arsenal" } },
+    { id:"cup-soon", comp:"cup", status:"TIMED", utcDate:"2026-08-27T18:00:00Z", homeTeam:{ name:"Leeds" }, awayTeam:{ name:"Sunderland" } },
+  ];
+  assert.deepEqual(selectDisplayMatches(matches, settings, now, true).map(({ id }) => id), ["cup-soon", "cup-later", "pl-soon"]);
+});
+
+test("compact display matches contain renderer fields but omit provider metadata", () => {
+  const compact = compactDisplayMatch({ id:"one", sourceId:"upstream", provider:"espn", comp:"pl", competition:{ id:"pl", name:"Premier League", shortName:"Premier League", logo:"/logo.png", sources:{ espn:true } }, status:"IN_PLAY", utcDate:"2026-08-26T12:00:00Z", matchday:3, stage:"league", homeTeam:{ id:1, name:"Newcastle" }, awayTeam:{ id:2, name:"Liverpool" }, score:{ duration:"REGULAR", fullTime:{ home:1, away:0 } }, minute:67, injuryTime:null, phase:null, incidents:{ home:{ goals:[], redCards:[] }, away:{ goals:[], redCards:[] } } });
+  assert.equal(compact.provider, undefined);
+  assert.equal(compact.matchday, undefined);
+  assert.equal(compact.competition.sources, undefined);
+  assert.equal(compact.homeTeam.name, "Newcastle");
+  assert.deepEqual(compact.score.fullTime, { home:1, away:0 });
 });

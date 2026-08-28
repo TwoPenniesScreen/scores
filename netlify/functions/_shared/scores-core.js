@@ -307,6 +307,107 @@ export function cacheTtlForMatches(matches, now = new Date(), liveTtl = 25_000) 
   return 6 * 60 * 60_000;
 }
 
+function expectedMatchMinutes(match) {
+  const phase = String(match?.phase || "").toUpperCase();
+  const duration = String(match?.score?.duration || "").toUpperCase();
+  if (phase === "PENS" || duration === "PENALTY_SHOOTOUT") return 160;
+  if (phase === "ET" || duration === "EXTRA_TIME") return 140;
+  return 105;
+}
+
+function displayHighlightName(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isDisplayHighlighted(match, settings, legacyHighlightIds) {
+  if ((legacyHighlightIds || []).includes(Number(match?.homeTeam?.id))
+    || (legacyHighlightIds || []).includes(Number(match?.awayTeam?.id))) return true;
+  const home = displayHighlightName(match?.homeTeam?.name);
+  const away = displayHighlightName(match?.awayTeam?.name);
+  return (settings.highlightTeams || []).some((name) => {
+    const wanted = displayHighlightName(name);
+    return wanted && (home === wanted || away === wanted);
+  });
+}
+
+function displayPriority(match, settings, legacyHighlightIds) {
+  const competitionOrder = new Map((settings.competitions || []).map((id, index) => [id, index]));
+  const kickOff = new Date(match.utcDate || 0).getTime();
+  return {
+    highlighted: isDisplayHighlighted(match, settings, legacyHighlightIds),
+    competition: competitionOrder.get(match.comp) ?? 999,
+    kickOff: Number.isFinite(kickOff) ? kickOff : 0,
+  };
+}
+
+export function selectDisplayMatches(matches, settings, now = new Date(), forcedLive = false, legacyHighlightIds = []) {
+  const nowMs = now.getTime();
+  const relevant = [];
+  const overdue = [];
+  const future = [];
+  const scheduled = [];
+
+  for (const match of matches || []) {
+    const status = String(match?.status || "").toUpperCase();
+    if (!match?.homeTeam || !match?.awayTeam) continue;
+    if (status === "TIMED" || status === "SCHEDULED") scheduled.push(match);
+    const kickOff = new Date(match?.utcDate || 0).getTime();
+    if (!Number.isFinite(kickOff)) continue;
+    const minutesFromKickOff = (nowMs - kickOff) / 60_000;
+    if (isLiveStatus(status)) relevant.push(match);
+    else if (status === "TIMED" || status === "SCHEDULED") {
+      if (minutesFromKickOff <= 0 && minutesFromKickOff >= -settings.preMinutes) relevant.push(match);
+      else if (minutesFromKickOff > 0 && minutesFromKickOff <= 240) overdue.push(match);
+      else if (minutesFromKickOff < 0) future.push(match);
+    } else if (status === "FINISHED" && minutesFromKickOff >= 0
+      && minutesFromKickOff <= expectedMatchMinutes(match) + settings.postMinutes) relevant.push(match);
+  }
+
+  if (forcedLive && relevant.length === 0) {
+    return scheduled.sort((left, right) => {
+      const a = displayPriority(left, settings, legacyHighlightIds);
+      const b = displayPriority(right, settings, legacyHighlightIds);
+      if (a.highlighted !== b.highlighted) return a.highlighted ? -1 : 1;
+      return a.competition - b.competition || a.kickOff - b.kickOff;
+    }).slice(0, settings.maxRows);
+  }
+
+  if (future.length) {
+    const next = future.reduce((soonest, match) => new Date(match.utcDate) < new Date(soonest.utcDate) ? match : soonest);
+    return [...relevant, ...overdue, next];
+  }
+  return [...relevant, ...overdue];
+}
+
+export function compactDisplayMatch(match) {
+  const competition = match.competition || {};
+  const score = match.score || {};
+  return {
+    id: match.id,
+    comp: match.comp,
+    competition: {
+      id: competition.id,
+      name: competition.name,
+      shortName: competition.shortName,
+      logo: competition.logo,
+    },
+    status: match.status,
+    utcDate: match.utcDate,
+    homeTeam: { id: match.homeTeam?.id ?? null, name: match.homeTeam?.name || "" },
+    awayTeam: { id: match.awayTeam?.id ?? null, name: match.awayTeam?.name || "" },
+    score: {
+      duration: score.duration,
+      fullTime: score.fullTime,
+      halfTime: score.halfTime,
+      penalties: score.penalties,
+    },
+    minute: match.minute,
+    injuryTime: match.injuryTime,
+    phase: match.phase,
+    incidents: match.incidents,
+  };
+}
+
 export function matchesTeamName(match, highlightTeams) {
   const names = (highlightTeams || []).map((value) => tidyName(value).toLowerCase());
   const home = tidyName(match?.homeTeam?.name).toLowerCase();
