@@ -30,14 +30,46 @@ function clientHelpers() {
     clearTimeout() {},
     setInterval() { return 1; },
     clearInterval() {},
+    requestAnimationFrame(callback) { callback(); return 1; },
     localStorage: { getItem() { return null; }, setItem() {} },
     console,
     Date,
     Intl,
   });
-  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions};`, context);
+  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions,boardLayout};`, context);
   return context.__helpers;
 }
+
+test("a highlighted match stays pinned while every other match forms one scrolling list", () => {
+  const { boardLayout } = clientHelpers();
+  const matches = [
+    { id:"pinned", __pin:true },
+    { id:"one" }, { id:"two" }, { id:"three" }, { id:"four" }, { id:"five" },
+  ];
+  const layout = boardLayout(matches, 5);
+  assert.equal(layout.pinned.id, "pinned");
+  assert.deepEqual(Array.from(layout.unpinned, ({ id }) => id), ["one", "two", "three", "four", "five"]);
+  assert.equal(layout.visibleSlots, 4);
+  assert.equal(layout.scrolling, true);
+});
+
+test("a short non-pinned list remains stationary", () => {
+  const { boardLayout } = clientHelpers();
+  const layout = boardLayout([{ id:"one" }, { id:"two" }], 5);
+  assert.equal(layout.pinned, null);
+  assert.equal(layout.visibleSlots, 5);
+  assert.equal(layout.scrolling, false);
+});
+
+test("the pinned match does not consume the scrolling sequence", () => {
+  const { boardLayout } = clientHelpers();
+  const pinned = { id:"pinned", __pin:true };
+  const layout = boardLayout([{ id:"one" }, pinned, { id:"two" }], 2);
+  assert.equal(layout.pinned.id, "pinned");
+  assert.deepEqual(Array.from(layout.unpinned, ({ id }) => id), ["one", "two"]);
+  assert.equal(layout.visibleSlots, 1);
+  assert.equal(layout.scrolling, true);
+});
 
 test("a failed competition retains its old rows while a healthy live competition updates", () => {
   const { mergeFailedCompetitions } = clientHelpers();
