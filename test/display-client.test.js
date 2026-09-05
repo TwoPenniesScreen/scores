@@ -36,7 +36,7 @@ function clientHelpers() {
     Date,
     Intl,
   });
-  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions,boardLayout};`, context);
+  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions,boardLayout,continuousScrollMetrics};`, context);
   return context.__helpers;
 }
 
@@ -69,6 +69,18 @@ test("the pinned match does not consume the scrolling sequence", () => {
   assert.deepEqual(Array.from(layout.unpinned, ({ id }) => id), ["one", "two"]);
   assert.equal(layout.visibleSlots, 1);
   assert.equal(layout.scrolling, true);
+});
+
+test("scroll measurements use unscaled layout dimensions", () => {
+  const { continuousScrollMetrics } = clientHelpers();
+  const children = Array.from({ length:5 }, () => ({
+    offsetHeight:91,
+    getBoundingClientRect() { return { height:45.5 }; },
+  }));
+  const sequence = { children, offsetHeight:503 };
+  const metrics = continuousScrollMetrics(sequence, 4, 12);
+  assert.equal(metrics.visibleHeight, 400);
+  assert.equal(metrics.distance, 515);
 });
 
 test("a failed competition retains its old rows while a healthy live competition updates", () => {
