@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 
-function clientHelpers() {
+function clientHelpers(search = "?preview=one") {
   const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const script = html.match(/<script>\s*([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, "public screen script exists");
@@ -15,7 +15,7 @@ function clientHelpers() {
   const elements = new Map();
   const context = vm.createContext({
     URLSearchParams,
-    location: { search:"?preview=one" },
+    location: { search },
     document: {
       body: element(),
       getElementById(id) {
@@ -36,9 +36,16 @@ function clientHelpers() {
     Date,
     Intl,
   });
-  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions,boardLayout,continuousScrollMetrics};`, context);
+  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions,boardLayout,continuousScrollMetrics,sampleData};`, context);
   return context.__helpers;
 }
+
+test("the embedded preview honours the selected visible game count", () => {
+  const { sampleData } = clientHelpers("?preview=one&max=3");
+  const data = sampleData(false);
+  assert.equal(data.settings.maxRows, 3);
+  assert.equal(data.matches.length, 7);
+});
 
 test("a highlighted match stays pinned while every other match forms one scrolling list", () => {
   const { boardLayout } = clientHelpers();
