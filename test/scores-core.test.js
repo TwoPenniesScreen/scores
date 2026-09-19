@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { resolveCompetition } from "../netlify/functions/_shared/catalog.js";
-import { cacheTtlForMatches, compactDisplayMatch, matchesTeamName, mergeEspnIntoFootballData, normaliseEspn, normaliseFootballData, selectDisplayMatches, tidyName } from "../netlify/functions/_shared/scores-core.js";
+import { cacheTtlForMatches, compactDisplayMatch, matchesTeamName, mergeEspnIntoFootballData, normaliseEspn, normaliseFootballData, reuseRecentEspnIncidents, selectDisplayMatches, tidyName } from "../netlify/functions/_shared/scores-core.js";
 
 test("friendly names are provider independent", () => {
   assert.equal(tidyName("Newcastle United FC"), "Newcastle");
@@ -73,6 +73,26 @@ test("hybrid enrichment ignores an unsafe fixture match", () => {
   assert.equal(merged.matches.length, 1);
   assert.equal(merged.enrichedCount, 0);
   assert.equal(merged.matches[0].provider, "football-data");
+});
+
+test("a temporary ESPN failure keeps recent scorers without freezing the primary score or clock", () => {
+  const competition = resolveCompetition("PL");
+  const previousPrimary = normaliseFootballData({ id:100, status:"IN_PLAY", utcDate:"2026-09-19T14:00:00Z", homeTeam:{ id:67, name:"Newcastle United FC" }, awayTeam:{ id:64, name:"Hull City" }, score:{ fullTime:{ home:1, away:0 } } }, competition);
+  const espn = normaliseEspn({ id:"401", date:"2026-09-19T14:00:00Z", status:{ displayClock:"35'", type:{ state:"in", name:"STATUS_IN_PROGRESS" } }, competitions:[{ competitors:[{ homeAway:"home", score:"1", team:{ id:"361", displayName:"Newcastle United" } },{ homeAway:"away", score:"0", team:{ id:"364", displayName:"Hull City" } }], details:[{ type:{ text:"Goal" }, clock:{ displayValue:"3'" }, team:{ id:"361" }, scoringPlay:true, athletesInvolved:[{ shortName:"J. Willock" }] }] }] }, competition);
+  const previous = mergeEspnIntoFootballData([previousPrimary], [espn]).matches;
+  const fresh = normaliseFootballData({ id:100, status:"IN_PLAY", utcDate:"2026-09-19T14:00:00Z", homeTeam:{ id:67, name:"Newcastle United FC" }, awayTeam:{ id:64, name:"Hull City" }, score:{ fullTime:{ home:2, away:0 } }, minute:42 }, competition);
+  const carried = reuseRecentEspnIncidents([fresh], previous);
+  assert.equal(carried.enrichedCount, 1);
+  assert.deepEqual(carried.matches[0].score.fullTime, { home:2, away:0 });
+  assert.equal(carried.matches[0].provider, "football-data");
+  assert.equal(carried.matches[0].incidents.home.goals[0].name, "Willock");
+  assert.equal(carried.matches[0].staleEspnIncidents, true);
+
+  const scoreWentBack = { ...fresh, score: { fullTime: { home:0, away:0 } } };
+  assert.equal(reuseRecentEspnIncidents([scoreWentBack], previous).enrichedCount, 0);
+  assert.equal(reuseRecentEspnIncidents([{ ...fresh, score: { fullTime: { home:null, away:null } } }], previous).enrichedCount, 0);
+  assert.equal(reuseRecentEspnIncidents([{ ...fresh, status:"TIMED" }], previous).enrichedCount, 0);
+  assert.equal(reuseRecentEspnIncidents([{ ...fresh, awayTeam:{ name:"Everton" } }], previous).enrichedCount, 0);
 });
 
 test("poll cache ramps up around kickoff", () => {

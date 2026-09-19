@@ -14,9 +14,10 @@ import {
   mergeEspnIntoFootballData,
   normaliseEspn,
   normaliseFootballData,
+  reuseRecentEspnIncidents,
   selectDisplayMatches,
 } from "./_shared/scores-core.js";
-import { espnMonthSelectors, londonDate, selectEspnWindowEvents } from "./_shared/espn-feed.js";
+import { espnMonthSelectors, fetchEspnWithRetry, londonDate, recentEspnSnapshot, selectEspnWindowEvents } from "./_shared/espn-feed.js";
 
 const FOOTBALL_DATA_BASE = "https://api.football-data.org/v4";
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
@@ -87,7 +88,7 @@ async function fetchEspn(competition: any, from: string, to: string) {
   try {
     const batches = await Promise.all(espnMonthSelectors(from, to).map(async (month) => {
       const url = `${ESPN_BASE}/${encodeURIComponent(competition.espnSlug)}/scoreboard?dates=${month}&limit=${ESPN_EVENT_LIMIT}`;
-      const data = await fetchJson(url);
+      const data = await fetchEspnWithRetry(() => fetchJson(url));
       return data.events;
     }));
     return selectEspnWindowEvents(batches, from, to, ESPN_EVENT_LIMIT)
@@ -207,6 +208,14 @@ async function loadCompetitionOnce(competition: any, sourceMode: string, from: s
 
   try {
     const upstream: any = await fetchCompetition(competition, sourceMode, from, to);
+    let lastGoodEspn = sourceMode === "hybrid" ? recentEspnSnapshot(cached, now) : null;
+    if (sourceMode === "hybrid" && upstream.provider === "football-data+espn") {
+      lastGoodEspn = { fetchedAt: now.toISOString(), matches: upstream.matches };
+    } else if (sourceMode === "hybrid" && upstream.enrichmentError && lastGoodEspn) {
+      const carried = reuseRecentEspnIncidents(upstream.matches, lastGoodEspn.matches);
+      upstream.matches = carried.matches;
+      upstream.enrichedCount = carried.enrichedCount;
+    }
     const value = {
       provider: upstream.provider,
       matches: upstream.matches,
@@ -214,6 +223,7 @@ async function loadCompetitionOnce(competition: any, sourceMode: string, from: s
       primaryError: upstream.primaryError || null,
       enrichmentError: upstream.enrichmentError || null,
       enrichedCount: Number(upstream.enrichedCount || 0),
+      lastGoodEspn,
       fetchedAt: now.toISOString(),
     };
     try {
