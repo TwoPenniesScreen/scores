@@ -16,9 +16,11 @@ import {
   normaliseFootballData,
   selectDisplayMatches,
 } from "./_shared/scores-core.js";
+import { espnMonthSelectors, londonDate, selectEspnWindowEvents } from "./_shared/espn-feed.js";
 
 const FOOTBALL_DATA_BASE = "https://api.football-data.org/v4";
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
+const ESPN_EVENT_LIMIT = 500;
 const UPSTREAM_TIMEOUT_MS = 9_000;
 const competitionLoads = new Map<string, Promise<any>>();
 
@@ -35,21 +37,6 @@ function response(body: unknown, status = 200, headers: Record<string, string> =
 
 function scoresStore() {
   return getStore({ name: "scores", consistency: "strong" });
-}
-
-function londonDate(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const read = (type: string) => parts.find((part) => part.type === type)?.value || "01";
-  return `${read("year")}-${read("month")}-${read("day")}`;
-}
-
-function compactDate(value: string) {
-  return value.replaceAll("-", "");
 }
 
 function dateRange() {
@@ -97,11 +84,14 @@ async function fetchFootballData(competition: any, from: string, to: string) {
 
 async function fetchEspn(competition: any, from: string, to: string) {
   if (!competition.espnSlug) throw new Error("ESPN does not list this competition");
-  const dates = `${compactDate(from)}-${compactDate(to)}`;
-  const url = `${ESPN_BASE}/${encodeURIComponent(competition.espnSlug)}/scoreboard?dates=${dates}&limit=100`;
   try {
-    const data = await fetchJson(url);
-    return (Array.isArray(data.events) ? data.events : []).map((event: any) => normaliseEspn(event, competition));
+    const batches = await Promise.all(espnMonthSelectors(from, to).map(async (month) => {
+      const url = `${ESPN_BASE}/${encodeURIComponent(competition.espnSlug)}/scoreboard?dates=${month}&limit=${ESPN_EVENT_LIMIT}`;
+      const data = await fetchJson(url);
+      return data.events;
+    }));
+    return selectEspnWindowEvents(batches, from, to, ESPN_EVENT_LIMIT)
+      .map((event: any) => normaliseEspn(event, competition));
   } catch (error: any) {
     throw new Error(`ESPN ${error?.message || error}`);
   }
