@@ -1,3 +1,5 @@
+import { reuseRecentEspnIncidents } from "./scores-core.js";
+
 const londonDateFormatter = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/London",
   year: "numeric",
@@ -70,6 +72,35 @@ export function recentEspnSnapshot(cached, now, maxAgeMs = 5 * 60_000) {
     ? { fetchedAt: cached.fetchedAt, matches: cached.matches }
     : null);
   const age = now.getTime() - new Date(snapshot?.fetchedAt || 0).getTime();
-  if (!Array.isArray(snapshot?.matches) || !Number.isFinite(age) || age < 0 || age > maxAgeMs) return null;
+  // Overlapping function invocations may save a snapshot a few seconds after
+  // another request started. Treat that small clock lead as recent, not invalid.
+  if (!Array.isArray(snapshot?.matches) || !Number.isFinite(age) || age < -60_000 || age > maxAgeMs) return null;
   return snapshot;
+}
+
+export async function retainHybridEspnDetails(store, key, upstream, cached, now = new Date()) {
+  if (upstream.provider === "football-data+espn") {
+    // Only a successful ESPN enrichment updates this independently stored
+    // snapshot. Failed feed refreshes may replace the main feed cache freely.
+    try {
+      await store.setJSON(key, { fetchedAt: now.toISOString(), matches: upstream.matches });
+    } catch (error) {
+      console.warn("Unable to save ESPN scorer details", error);
+    }
+  } else if (upstream.enrichmentError) {
+    let snapshot = null;
+    try {
+      snapshot = await store.get(key, { type: "json" });
+    } catch (error) {
+      console.warn("Unable to read ESPN scorer details", error);
+    }
+    const lastGood = recentEspnSnapshot({ lastGoodEspn: snapshot }, now)
+      || recentEspnSnapshot(cached, now); // Previous embedded cache during rollout.
+    if (lastGood) {
+      const carried = reuseRecentEspnIncidents(upstream.matches, lastGood.matches);
+      upstream.matches = carried.matches;
+      upstream.enrichedCount = carried.enrichedCount;
+    }
+  }
+  return upstream;
 }

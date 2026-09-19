@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { espnMonthSelectors, fetchEspnWithRetry, recentEspnSnapshot, selectEspnWindowEvents } from "../netlify/functions/_shared/espn-feed.js";
+import { espnMonthSelectors, fetchEspnWithRetry, recentEspnSnapshot, retainHybridEspnDetails, selectEspnWindowEvents } from "../netlify/functions/_shared/espn-feed.js";
 import { resolveCompetition } from "../netlify/functions/_shared/catalog.js";
 import { mergeEspnIntoFootballData, normaliseEspn, normaliseFootballData } from "../netlify/functions/_shared/scores-core.js";
 
@@ -59,7 +59,46 @@ test("only recent successful hybrid ESPN details can survive a failed refresh", 
   assert.equal(recentEspnSnapshot({ lastGoodEspn, fetchedAt: "2026-09-19T14:59:50Z", matches: [] }, now), lastGoodEspn);
   assert.deepEqual(recentEspnSnapshot({ provider: "football-data+espn", fetchedAt: "2026-09-19T14:59:00Z", matches: [{ id: "legacy" }] }, now)?.matches, [{ id: "legacy" }]);
   assert.equal(recentEspnSnapshot({ lastGoodEspn: { ...lastGoodEspn, fetchedAt: "2026-09-19T14:54:59Z" } }, now), null);
+  assert.equal(recentEspnSnapshot({ lastGoodEspn: { ...lastGoodEspn, fetchedAt: "2026-09-19T15:00:10Z" } }, now)?.matches[0].id, "scorer");
+  assert.equal(recentEspnSnapshot({ lastGoodEspn: { ...lastGoodEspn, fetchedAt: "2026-09-19T15:01:01Z" } }, now), null);
   assert.equal(recentEspnSnapshot({ provider: "football-data", fetchedAt: now.toISOString(), matches: [] }, now), null);
+});
+
+test("repeated failed feed writes cannot erase the independent scorer snapshot", async () => {
+  const saved = new Map();
+  const writes = [];
+  const store = {
+    async setJSON(key, value) { saved.set(key, value); writes.push(key); },
+    async get(key) { return saved.get(key) || null; },
+  };
+  const key = "feed:hybrid-last-good:pl";
+  const feedKey = "feed:hybrid:pl";
+  const match = {
+    id: "fd-100", provider: "football-data+espn", sourceId: 100,
+    sourceIds: { footballData: 100, espn: "401" },
+    status: "IN_PLAY", utcDate: "2026-09-19T14:00:00Z", minute: 35,
+    homeTeam: { name: "Newcastle" }, awayTeam: { name: "Hull" },
+    score: { fullTime: { home: 1, away: 0 } },
+    incidents: { home: { goals: [{ name: "Willock", time: "3'" }], redCards: [] }, away: { goals: [], redCards: [] } },
+  };
+  const success = { provider: "football-data+espn", matches: [match] };
+  await retainHybridEspnDetails(store, key, success, null, new Date("2026-09-19T15:00:00Z"));
+  await store.setJSON(feedKey, success);
+
+  for (const minute of [1, 2]) {
+    const primary = { ...match, provider: "football-data", minute: 40 + minute,
+      score: { fullTime: { home: 2, away: 0 } }, incidents: null };
+    const failed = { provider: "football-data", matches: [primary], enrichmentError: "ESPN 400" };
+    const previousFeed = await store.get(feedKey);
+    await retainHybridEspnDetails(store, key, failed, previousFeed, new Date(`2026-09-19T15:0${minute}:00Z`));
+    await store.setJSON(feedKey, failed);
+    assert.equal(failed.enrichedCount, 1);
+    assert.equal(failed.matches[0].incidents.home.goals[0].name, "Willock");
+    assert.deepEqual(failed.matches[0].score.fullTime, { home: 2, away: 0 });
+    assert.equal(failed.matches[0].minute, 40 + minute);
+  }
+  assert.deepEqual(writes, [key, feedKey, feedKey, feedKey]);
+  assert.equal((await store.get(key)).matches[0].provider, "football-data+espn");
 });
 
 test("ESPN scorer details from a month request still enrich the hybrid score", () => {
