@@ -49,3 +49,27 @@ export function selectEspnWindowEvents(batches, from, to, limit) {
   }
   return selected;
 }
+
+export function isTransientEspnError(error) {
+  const message = String(error?.message || error);
+  return /^400:.*Failed to get events endpoint/i.test(message) || /^(429|5\d\d):/.test(message);
+}
+
+export async function fetchEspnWithRetry(fetchOnce, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))) {
+  try {
+    return await fetchOnce();
+  } catch (error) {
+    if (!isTransientEspnError(error)) throw error;
+    await wait(350);
+    return fetchOnce();
+  }
+}
+
+export function recentEspnSnapshot(cached, now, maxAgeMs = 5 * 60_000) {
+  const snapshot = cached?.lastGoodEspn || (cached?.provider === "football-data+espn"
+    ? { fetchedAt: cached.fetchedAt, matches: cached.matches }
+    : null);
+  const age = now.getTime() - new Date(snapshot?.fetchedAt || 0).getTime();
+  if (!Array.isArray(snapshot?.matches) || !Number.isFinite(age) || age < 0 || age > maxAgeMs) return null;
+  return snapshot;
+}

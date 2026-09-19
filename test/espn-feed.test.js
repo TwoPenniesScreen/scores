@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { espnMonthSelectors, selectEspnWindowEvents } from "../netlify/functions/_shared/espn-feed.js";
+import { espnMonthSelectors, fetchEspnWithRetry, recentEspnSnapshot, selectEspnWindowEvents } from "../netlify/functions/_shared/espn-feed.js";
 import { resolveCompetition } from "../netlify/functions/_shared/catalog.js";
 import { mergeEspnIntoFootballData, normaliseEspn, normaliseFootballData } from "../netlify/functions/_shared/scores-core.js";
 
@@ -31,6 +31,35 @@ test("ESPN month results fail visibly if the requested event limit may truncate 
     () => selectEspnWindowEvents([null], "2026-09-18", "2026-10-19", 500),
     /invalid event list/,
   );
+});
+
+test("ESPN retries a temporary endpoint 400 once but never retries an invalid request", async () => {
+  let calls = 0;
+  const waits = [];
+  const result = await fetchEspnWithRetry(async () => {
+    calls += 1;
+    if (calls === 1) throw new Error('400: {"code":400,"message":"Failed to get events endpoint."}');
+    return { events: ["recovered"] };
+  }, async (ms) => waits.push(ms));
+  assert.deepEqual(result.events, ["recovered"]);
+  assert.equal(calls, 2);
+  assert.deepEqual(waits, [350]);
+
+  calls = 0;
+  await assert.rejects(fetchEspnWithRetry(async () => {
+    calls += 1;
+    throw new Error("400: invalid date selector");
+  }, async () => assert.fail("should not wait")), /invalid date selector/);
+  assert.equal(calls, 1);
+});
+
+test("only recent successful hybrid ESPN details can survive a failed refresh", () => {
+  const now = new Date("2026-09-19T15:00:00Z");
+  const lastGoodEspn = { fetchedAt: "2026-09-19T14:56:00Z", matches: [{ id: "scorer" }] };
+  assert.equal(recentEspnSnapshot({ lastGoodEspn, fetchedAt: "2026-09-19T14:59:50Z", matches: [] }, now), lastGoodEspn);
+  assert.deepEqual(recentEspnSnapshot({ provider: "football-data+espn", fetchedAt: "2026-09-19T14:59:00Z", matches: [{ id: "legacy" }] }, now)?.matches, [{ id: "legacy" }]);
+  assert.equal(recentEspnSnapshot({ lastGoodEspn: { ...lastGoodEspn, fetchedAt: "2026-09-19T14:54:59Z" } }, now), null);
+  assert.equal(recentEspnSnapshot({ provider: "football-data", fetchedAt: now.toISOString(), matches: [] }, now), null);
 });
 
 test("ESPN scorer details from a month request still enrich the hybrid score", () => {

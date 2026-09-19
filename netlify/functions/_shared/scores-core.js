@@ -285,6 +285,26 @@ export function mergeEspnIntoFootballData(footballDataMatches, espnMatches) {
   return { matches, enrichedCount };
 }
 
+// Keep scorer details briefly through a transient ESPN failure, but never reuse
+// ESPN's old score, clock or status in place of the fresh primary feed.
+export function reuseRecentEspnIncidents(footballDataMatches, previousMatches) {
+  let enrichedCount = 0;
+  const matches = (footballDataMatches || []).map((match) => {
+    if (!isLiveStatus(match.status) && match.status !== "FINISHED") return match;
+    const previous = (previousMatches || []).find((candidate) =>
+      candidate?.provider === "football-data+espn" && sameFixture(match, candidate)
+      && (!candidate.sourceIds?.footballData || candidate.sourceIds.footballData === match.sourceId));
+    if (!previous?.incidents) return match;
+    const score = match.score?.fullTime;
+    if (["home", "away"].some((side) =>
+      score?.[side] == null || !Number.isFinite(Number(score[side]))
+      || (previous.incidents?.[side]?.goals?.length || 0) > Number(score[side]))) return match;
+    enrichedCount += 1;
+    return { ...match, incidents: previous.incidents, staleEspnIncidents: true };
+  });
+  return { matches, enrichedCount };
+}
+
 export function isLiveStatus(value) {
   const status = String(value || "").toUpperCase();
   return status === "IN_PLAY" || status === "PAUSED" || status === "LIVE";
