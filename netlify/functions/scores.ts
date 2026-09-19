@@ -14,10 +14,9 @@ import {
   mergeEspnIntoFootballData,
   normaliseEspn,
   normaliseFootballData,
-  reuseRecentEspnIncidents,
   selectDisplayMatches,
 } from "./_shared/scores-core.js";
-import { espnMonthSelectors, fetchEspnWithRetry, londonDate, recentEspnSnapshot, selectEspnWindowEvents } from "./_shared/espn-feed.js";
+import { espnMonthSelectors, fetchEspnWithRetry, londonDate, retainHybridEspnDetails, selectEspnWindowEvents } from "./_shared/espn-feed.js";
 
 const FOOTBALL_DATA_BASE = "https://api.football-data.org/v4";
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
@@ -181,6 +180,7 @@ function safeCachedMatches(cached: any, now: Date) {
 async function loadCompetitionOnce(competition: any, sourceMode: string, from: string, to: string, now: Date) {
   const store = scoresStore();
   const cacheKey = `feed:${sourceMode}:${competition.id}`;
+  const lastGoodKey = `feed:hybrid-last-good:${competition.id}`;
   let cached: any = null;
   try {
     cached = await store.get(cacheKey, { type: "json" });
@@ -208,14 +208,7 @@ async function loadCompetitionOnce(competition: any, sourceMode: string, from: s
 
   try {
     const upstream: any = await fetchCompetition(competition, sourceMode, from, to);
-    let lastGoodEspn = sourceMode === "hybrid" ? recentEspnSnapshot(cached, now) : null;
-    if (sourceMode === "hybrid" && upstream.provider === "football-data+espn") {
-      lastGoodEspn = { fetchedAt: now.toISOString(), matches: upstream.matches };
-    } else if (sourceMode === "hybrid" && upstream.enrichmentError && lastGoodEspn) {
-      const carried = reuseRecentEspnIncidents(upstream.matches, lastGoodEspn.matches);
-      upstream.matches = carried.matches;
-      upstream.enrichedCount = carried.enrichedCount;
-    }
+    if (sourceMode === "hybrid") await retainHybridEspnDetails(store, lastGoodKey, upstream, cached, new Date());
     const value = {
       provider: upstream.provider,
       matches: upstream.matches,
@@ -223,7 +216,6 @@ async function loadCompetitionOnce(competition: any, sourceMode: string, from: s
       primaryError: upstream.primaryError || null,
       enrichmentError: upstream.enrichmentError || null,
       enrichedCount: Number(upstream.enrichedCount || 0),
-      lastGoodEspn,
       fetchedAt: now.toISOString(),
     };
     try {
