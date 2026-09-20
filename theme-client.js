@@ -18,6 +18,7 @@
   endpoint.searchParams.set("slot", slot);
   endpoint.searchParams.set("page", page);
   let currentImage = null;
+  let currentForeground = null;
   let checking = false;
   let lastAttempt = 0;
 
@@ -44,6 +45,12 @@
     });
   }
 
+  function validAsset(url) {
+    const parsed = new URL(url);
+    if (parsed.origin !== origin || !/^\/assets\/[a-f0-9]{64}\.webp$/.test(parsed.pathname)) throw new Error("Invalid image URL");
+    return url;
+  }
+
   async function checkTheme() {
     if (checking || Date.now() - lastAttempt < 5 * 60 * 1000) return;
     checking = true;
@@ -56,16 +63,23 @@
       const data = await response.json();
       if (data.slot !== slot || data.timezone !== "Europe/London") throw new Error("Invalid theme");
       const next = data.theme?.background;
+      const nextForeground = data.theme?.foreground || null;
       if (!next) {
         stage.style.removeProperty("--theme-background");
+        stage.style.removeProperty("--theme-foreground");
         currentImage = null;
+        currentForeground = null;
       } else {
-        const imageUrl = new URL(next);
-        if (imageUrl.origin !== origin || !/^\/assets\/[a-f0-9]{64}\.webp$/.test(imageUrl.pathname)) throw new Error("Invalid image URL");
-        if (next !== currentImage) {
-          await preload(next);
+        validAsset(next);
+        if (nextForeground) validAsset(nextForeground);
+        if (next !== currentImage || nextForeground !== currentForeground) {
+          await Promise.all([next !== currentImage ? preload(next) : null,
+            nextForeground && nextForeground !== currentForeground ? preload(nextForeground) : null]);
           stage.style.setProperty("--theme-background", `url("${next}")`);
+          if (nextForeground) stage.style.setProperty("--theme-foreground", `url("${nextForeground}")`);
+          else stage.style.removeProperty("--theme-foreground");
           currentImage = next;
+          currentForeground = nextForeground;
         }
       }
       applyOverlay(data.overlay);
