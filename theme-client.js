@@ -19,6 +19,7 @@
   endpoint.searchParams.set("page", page);
   let currentImage = null;
   let checking = false;
+  let lastAttempt = 0;
 
   function applyOverlay(value) {
     const color = value?.color;
@@ -44,8 +45,9 @@
   }
 
   async function checkTheme() {
-    if (checking) return;
+    if (checking || Date.now() - lastAttempt < 5 * 60 * 1000) return;
     checking = true;
+    lastAttempt = Date.now();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 8000);
     try {
