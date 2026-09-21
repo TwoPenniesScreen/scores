@@ -22,6 +22,7 @@
   let currentForeground = null;
   let checking = false;
   let lastAttempt = 0;
+  let firstCheckDone = false;
 
   function applyOverlay(value) {
     const color = value?.color;
@@ -40,7 +41,7 @@
     return new Promise((resolve, reject) => {
       const image = new Image();
       const timer = setTimeout(() => { image.onload = image.onerror = null; reject(new Error("Image timed out")); }, 8000);
-      image.onload = () => { clearTimeout(timer); resolve(); };
+      image.onload = () => { Promise.resolve().then(() => image.decode?.()).then(() => { clearTimeout(timer); resolve(); }, error => { clearTimeout(timer); reject(error); }); };
       image.onerror = () => { clearTimeout(timer); reject(new Error("Image failed")); };
       image.src = url;
     });
@@ -94,8 +95,11 @@
         stage.style.removeProperty("--theme-wordmark");
         stage.style.removeProperty("--theme-wordmark-opacity");
       }
-    } catch { /* Keep the current image, or the bundled local background. */ }
-    finally { clearTimeout(timer); checking = false; }
+    } catch { /* Keep the current image, or show the neutral canvas on first load. */ }
+    finally {
+      clearTimeout(timer); checking = false;
+      if (!firstCheckDone) { firstCheckDone = true; stage.style.setProperty("--theme-first-ready", "1"); }
+    }
   }
 
   void checkTheme();
