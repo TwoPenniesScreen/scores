@@ -12,7 +12,9 @@
     body{color:var(--fg);font-family:TwoPenniesPlain,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;text-transform:uppercase}
     .stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:top left;background:#0b0b0b;visibility:hidden}
     .bg{position:absolute;inset:0;z-index:0;background-position:center;background-size:cover;background-repeat:no-repeat}
-    body[data-mode="welcome"] .bg{background-image:var(--theme-background,url("./assets/Generic.webp"))}
+    body[data-mode="welcome"] .bg{background-image:var(--theme-background,none)}
+    body[data-mode="welcome"] .stage{opacity:var(--theme-first-ready,0)}
+    body[data-mode="live"] .stage{opacity:1}
     body[data-mode="live"] .bg{background-image:url("./assets/Live.webp")}
     .theme-tint{position:absolute;inset:0;z-index:1;background:var(--theme-tint-color,transparent);opacity:var(--theme-tint-opacity,0);pointer-events:none}
     .theme-foreground{position:absolute;inset:0;z-index:2;background:center / cover no-repeat var(--theme-foreground,none);clip-path:inset(75% 0 0 75%);pointer-events:none}
