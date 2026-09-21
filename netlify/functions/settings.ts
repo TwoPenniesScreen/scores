@@ -51,6 +51,7 @@ function cookieValue(request: Request, name: string) {
 
 function isAuthenticated(request: Request, password: string) {
   if (!password) return false;
+  if (request.headers.get("x-admin-password") === password) return true;
   const token = cookieValue(request, COOKIE_NAME);
   const [timestamp, signature] = token.split(".");
   const issuedAt = Number(timestamp);
