@@ -15,9 +15,13 @@
     body[data-mode="welcome"] .bg{background-image:var(--theme-background,url("./assets/Generic.webp"))}
     body[data-mode="live"] .bg{background-image:url("./assets/Live.webp")}
     .theme-tint{position:absolute;inset:0;z-index:1;background:var(--theme-tint-color,transparent);opacity:var(--theme-tint-opacity,0);pointer-events:none}
-    .theme-foreground{position:absolute;inset:0;z-index:2;background:center / cover no-repeat var(--theme-foreground,none);pointer-events:none}
+    .theme-foreground{position:absolute;inset:0;z-index:2;background:center / cover no-repeat var(--theme-foreground,none);clip-path:inset(75% 0 0 75%);pointer-events:none}
+    .theme-fixed,.theme-wordmark{position:absolute;inset:0;z-index:3;background:center / cover no-repeat;pointer-events:none}
+    .theme-fixed{background-image:url("./assets/fixed-text.webp");opacity:var(--theme-fixed-opacity,0)}
+    .theme-wordmark{background-image:var(--theme-wordmark,none);opacity:var(--theme-wordmark-opacity,0)}
     body[data-mode="live"] .theme-tint{display:none}
     body[data-mode="live"] .theme-foreground{display:none}
+    body[data-mode="live"] .theme-fixed,body[data-mode="live"] .theme-wordmark{display:none}
     .content{position:relative;z-index:20;width:1920px;height:1080px;display:flex;align-items:center;justify-content:center;padding:60px 80px}
     body[data-mode="welcome"] .boards{display:none}
     body[data-mode="live"] .boards{display:flex}
@@ -55,7 +59,7 @@
 </head>
 <body data-mode="welcome">
   <div class="stage" id="stage">
-    <div class="bg" aria-hidden="true"></div><div class="theme-tint" aria-hidden="true"></div><div class="theme-foreground" aria-hidden="true"></div><div id="statusDot" aria-hidden="true"></div>
+    <div class="bg" aria-hidden="true"></div><div class="theme-tint" aria-hidden="true"></div><div class="theme-foreground" aria-hidden="true"></div><div class="theme-fixed" aria-hidden="true"></div><div class="theme-wordmark" aria-hidden="true"></div><div id="statusDot" aria-hidden="true"></div>
     <div class="debug" id="debugPanel" aria-label="Debug information">
       <div class="debugRow"><span>Mode</span><span id="dbgMode">—</span></div><div class="debugRow"><span>Last poll</span><span id="dbgLastPoll">—</span></div>
       <div class="debugRow"><span>Next poll</span><span id="dbgNextPoll">—</span></div><div class="debugRow"><span>Boards</span><span id="dbgBoards">—</span></div>

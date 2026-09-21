@@ -4,6 +4,7 @@
   const stage = document.querySelector(script?.dataset.themeStage || ".stage");
   const slot = script?.dataset.themeSlot;
   const page = script?.dataset.themePage;
+  const defaultWordmark = script?.dataset.themeWordmarkDefault || "none";
   const configured = new URLSearchParams(location.search).get("themeService") || script?.dataset.themeService;
   if (!stage || !slot || !page || !configured) return;
 
@@ -47,7 +48,7 @@
 
   function validAsset(url) {
     const parsed = new URL(url);
-    if (parsed.origin !== origin || !/^\/assets\/[a-f0-9]{64}\.webp$/.test(parsed.pathname)) throw new Error("Invalid image URL");
+    if (parsed.origin !== origin || !(/^\/assets\/[a-f0-9]{64}\.webp$/.test(parsed.pathname) || /^\/branding\/logos-(generic|christmas|halloween)-[a-f0-9]{12}\.webp$/.test(parsed.pathname))) throw new Error("Invalid image URL");
     return url;
   }
 
@@ -83,6 +84,16 @@
         }
       }
       applyOverlay(data.overlay);
+      const wordmark = data.overlay?.wordmark ?? (data.overlay?.centreLogo === true ? "centre-outlined" : defaultWordmark);
+      if (currentImage) stage.style.setProperty("--theme-fixed-opacity", "1");
+      else stage.style.removeProperty("--theme-fixed-opacity");
+      if (currentImage && /^(centre|left|right)-(outlined|black)$/.test(wordmark)) {
+        stage.style.setProperty("--theme-wordmark", `url("${new URL(`assets/wordmark-${wordmark}.webp`, document.baseURI).href}")`);
+        stage.style.setProperty("--theme-wordmark-opacity", "1");
+      } else {
+        stage.style.removeProperty("--theme-wordmark");
+        stage.style.removeProperty("--theme-wordmark-opacity");
+      }
     } catch { /* Keep the current image, or the bundled local background. */ }
     finally { clearTimeout(timer); checking = false; }
   }
