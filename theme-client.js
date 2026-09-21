@@ -41,7 +41,7 @@
     return new Promise((resolve, reject) => {
       const image = new Image();
       const timer = setTimeout(() => { image.onload = image.onerror = null; reject(new Error("Image timed out")); }, 8000);
-      image.onload = () => { clearTimeout(timer); Promise.resolve(image.decode?.()).then(resolve, reject); };
+      image.onload = () => { Promise.resolve().then(() => image.decode?.()).then(() => { clearTimeout(timer); resolve(); }, error => { clearTimeout(timer); reject(error); }); };
       image.onerror = () => { clearTimeout(timer); reject(new Error("Image failed")); };
       image.src = url;
     });
