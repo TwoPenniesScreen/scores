@@ -4,6 +4,7 @@
   const stage = document.querySelector(script?.dataset.themeStage || ".stage");
   const slot = script?.dataset.themeSlot;
   const page = script?.dataset.themePage;
+  const venue = /^\/basement(?:\/|$)/.test(location.pathname) ? "basement" : "two-pennies";
   const defaultWordmark = script?.dataset.themeWordmarkDefault || "none";
   const configured = new URLSearchParams(location.search).get("themeService") || script?.dataset.themeService;
   if (!stage || !slot || !page || !configured) return;
@@ -18,6 +19,7 @@
   const endpoint = new URL("/api/theme", origin);
   endpoint.searchParams.set("slot", slot);
   endpoint.searchParams.set("page", page);
+  endpoint.searchParams.set("venue", venue);
   let currentImage = null;
   let currentForeground = null;
   let checking = false;
@@ -49,7 +51,7 @@
 
   function validAsset(url) {
     const parsed = new URL(url);
-    if (parsed.origin !== origin || !(/^\/assets\/[a-f0-9]{64}\.webp$/.test(parsed.pathname) || /^\/branding\/logos-(generic|christmas|halloween)-[a-f0-9]{12}\.webp$/.test(parsed.pathname))) throw new Error("Invalid image URL");
+    if (parsed.origin !== origin || !(/^\/assets\/[a-f0-9]{64}\.webp$/.test(parsed.pathname) || /^\/branding\/logos-[a-z0-9-]+-[a-f0-9]{12}\.webp$/.test(parsed.pathname))) throw new Error("Invalid image URL");
     return url;
   }
 
@@ -63,7 +65,7 @@
       const response = await fetch(endpoint, { signal: controller.signal });
       if (!response.ok) throw new Error("Theme unavailable");
       const data = await response.json();
-      if (data.slot !== slot || data.timezone !== "Europe/London") throw new Error("Invalid theme");
+      if (data.slot !== slot || data.venue !== venue || data.timezone !== "Europe/London") throw new Error("Invalid theme");
       const next = data.theme?.background;
       const nextForeground = data.theme?.foreground || null;
       if (!next) {
@@ -89,7 +91,7 @@
       if (currentImage) stage.style.setProperty("--theme-fixed-opacity", "1");
       else stage.style.removeProperty("--theme-fixed-opacity");
       if (currentImage && /^(centre|left|right)-(outlined|black)$/.test(wordmark)) {
-        stage.style.setProperty("--theme-wordmark", `url("${new URL(`assets/wordmark-${wordmark}.webp`, document.baseURI).href}")`);
+        stage.style.setProperty("--theme-wordmark", `url("${new URL(`/assets/wordmark-${wordmark}.webp`, location.origin).href}")`);
         stage.style.setProperty("--theme-wordmark-opacity", "1");
       } else {
         stage.style.removeProperty("--theme-wordmark");

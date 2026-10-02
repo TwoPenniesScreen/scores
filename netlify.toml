@@ -27,3 +27,14 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=604800"
+
+
+[[redirects]]
+  from = "/basement"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/basement/"
+  to = "/index.html"
+  status = 200
