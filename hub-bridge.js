@@ -1,12 +1,12 @@
-/* Receives a short-lived admin hub token in the URL fragment, then removes it. */
+/* Receives a admin hub token in the URL fragment, then removes it. */
 (() => {
   const match = /^#hub=([A-Za-z0-9_.-]+)$/.exec(location.hash);
   if (match) {
-    try { sessionStorage.setItem("ttpHubToken", match[1]); } catch {}
+    try { localStorage.setItem("ttpHubToken", match[1]); } catch {}
     history.replaceState(null, "", location.pathname + location.search);
   }
   let token = "";
-  try { token = sessionStorage.getItem("ttpHubToken") || ""; } catch {}
+  try { token = localStorage.getItem("ttpHubToken") || ""; } catch {}
   window.ttpHubToken = token;
   if (!token) return;
   const originalFetch = window.fetch.bind(window);
