@@ -36,9 +36,19 @@ function clientHelpers() {
     Date,
     Intl,
   });
-  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions,boardLayout,continuousScrollMetrics};`, context);
+  vm.runInContext(`${script}\nglobalThis.__helpers={mergeFailedCompetitions,boardLayout,continuousScrollMetrics,nextPollDelay};`, context);
   return context.__helpers;
 }
+
+test("score polling stays fast around matches and rests when idle", () => {
+  const { nextPollDelay } = clientHelpers();
+  const now = new Date("2026-10-03T12:00:00Z");
+  const match = (status, offset) => ({ status, __kick: new Date(now.getTime() + offset) });
+  assert.equal(nextPollDelay([{ __live:true }], now), 30_000);
+  assert.equal(nextPollDelay([match("TIMED", 2 * 60 * 60_000)], now), 60_000);
+  assert.equal(nextPollDelay([match("TIMED", 12 * 60 * 60_000)], now), 5 * 60_000);
+  assert.equal(nextPollDelay([], now), 30 * 60_000);
+});
 
 test("a highlighted match stays pinned while every other match forms one scrolling list", () => {
   const { boardLayout } = clientHelpers();
