@@ -50,6 +50,14 @@ test("score polling stays fast around matches and rests when idle", () => {
   assert.equal(nextPollDelay([], now), 30 * 60_000);
 });
 
+test("display reads can use Netlify's shared cache", () => {
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const handler = readFileSync(new URL("../netlify/functions/scores.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(html, /fetch\(`\/api\/scores\?\$\{query\}`,\{cache:"no-store"/);
+  assert.match(handler, /netlify-cdn-cache-control/);
+  assert.match(handler, /durable/);
+});
+
 test("a highlighted match stays pinned while every other match forms one scrolling list", () => {
   const { boardLayout } = clientHelpers();
   const matches = [

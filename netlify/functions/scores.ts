@@ -329,8 +329,16 @@ export async function scoresHandler(request: Request, _context?: Context) {
         },
       });
       const etag = `"${createHash("sha256").update(displayBody).digest("base64url")}"`;
+      const live = matches.some((match: any) => ["IN_PLAY", "PAUSED", "LIVE"].includes(String(match.status).toUpperCase()));
+      const nextKickoff = matches
+        .map((match: any) => Date.parse(match.utcDate || ""))
+        .filter((time: number) => Number.isFinite(time) && time > now.getTime())
+        .sort((a: number, b: number) => a - b)[0];
+      const untilKickoff = Number.isFinite(nextKickoff) ? nextKickoff - now.getTime() : Infinity;
+      const edgeTtl = live ? 15 : untilKickoff <= 30 * 60_000 ? 30 : untilKickoff <= 2 * 60 * 60_000 ? 120 : 600;
       const headers = {
-        "cache-control": "no-store",
+        "cache-control": "public, max-age=0, must-revalidate",
+        "netlify-cdn-cache-control": `public, durable, s-maxage=${edgeTtl}, stale-while-revalidate=30`,
         etag,
       };
       if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304, headers });
