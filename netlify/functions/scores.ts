@@ -1,6 +1,5 @@
 import { getStore } from "@netlify/blobs";
 import type { Config, Context } from "@netlify/functions";
-import { createHash } from "node:crypto";
 import {
   COMPETITION_BY_ID,
   DEFAULT_SETTINGS,
@@ -37,6 +36,15 @@ function response(body: unknown, status = 200, headers: Record<string, string> =
 
 function scoresStore() {
   return getStore({ name: "scores", consistency: "strong" });
+}
+
+async function responseEtag(body: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
+  const encoded = btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+  return `"${encoded}"`;
 }
 
 function dateRange() {
@@ -328,7 +336,7 @@ export async function scoresHandler(request: Request, _context?: Context) {
           })),
         },
       });
-      const etag = `"${createHash("sha256").update(displayBody).digest("base64url")}"`;
+      const etag = await responseEtag(displayBody);
       const live = matches.some((match: any) => ["IN_PLAY", "PAUSED", "LIVE"].includes(String(match.status).toUpperCase()));
       const nextKickoff = matches
         .map((match: any) => Date.parse(match.utcDate || ""))
