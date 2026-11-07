@@ -57,6 +57,46 @@ export function isTransientEspnError(error) {
   return /^400:.*Failed to get events endpoint/i.test(message) || /^(429|5\d\d):/.test(message);
 }
 
+const ESPN_SUMMARY_FALLBACK_LIMIT = 8;
+
+function isLiveScoredEvent(event) {
+  const contest = event?.competitions?.[0];
+  const state = String(event?.status?.type?.state || contest?.status?.type?.state || "").toLowerCase();
+  if (state !== "in") return false;
+  return (contest?.competitors || []).some((team) => Number(team?.score) > 0);
+}
+
+// ESPN's scoreboard occasionally omits live incident details while its event
+// summary has them. Keep this fallback limited to scored live events and a
+// small per-competition request budget.
+export async function fillMissingEspnDetails(events, fetchSummary, limit = ESPN_SUMMARY_FALLBACK_LIMIT) {
+  const candidates = [];
+  for (let index = 0; index < (events || []).length; index += 1) {
+    const event = events[index];
+    const contest = event?.competitions?.[0];
+    if (!event?.id || !contest || (Array.isArray(contest.details) && contest.details.length > 0)) continue;
+    if (isLiveScoredEvent(event)) candidates.push({ event, index });
+  }
+
+  const requestLimit = Math.min(ESPN_SUMMARY_FALLBACK_LIMIT, Math.max(0, Math.floor(Number(limit) || 0)));
+  const summaries = await Promise.all(candidates.slice(0, requestLimit).map(async ({ event, index }) => {
+    try {
+      const summary = await fetchSummary(event);
+      const details = summary?.header?.competitions?.[0]?.details;
+      return Array.isArray(details) && details.length > 0 ? { index, details } : null;
+    } catch {
+      return null;
+    }
+  }));
+
+  const detailsByIndex = new Map(summaries.filter(Boolean).map(({ index, details }) => [index, details]));
+  return (events || []).map((event, index) => {
+    const details = detailsByIndex.get(index);
+    if (!details) return event;
+    const contest = event.competitions[0];
+    return { ...event, competitions: [{ ...contest, details }, ...event.competitions.slice(1)] };
+  });
+}
 export async function fetchEspnWithRetry(fetchOnce, wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))) {
   try {
     return await fetchOnce();
