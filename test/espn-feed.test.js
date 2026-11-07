@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { espnMonthSelectors, fetchEspnWithRetry, recentEspnSnapshot, retainHybridEspnDetails, selectEspnWindowEvents } from "../netlify/functions/_shared/espn-feed.js";
+import { espnMonthSelectors, fetchEspnWithRetry, fillMissingEspnDetails, recentEspnSnapshot, retainHybridEspnDetails, selectEspnWindowEvents } from "../netlify/functions/_shared/espn-feed.js";
 import { resolveCompetition } from "../netlify/functions/_shared/catalog.js";
 import { mergeEspnIntoFootballData, normaliseEspn, normaliseFootballData } from "../netlify/functions/_shared/scores-core.js";
 
@@ -135,4 +135,61 @@ test("ESPN scorer details from a month request still enrich the hybrid score", (
   assert.deepEqual(merged.matches[0].incidents.home.goals, [
     { name: "Willock", time: "3'", ownGoal: false, penalty: false },
   ]);
+});
+
+test("live scored ESPN events fill missing scoreboard incidents from the match summary", async () => {
+  const competition = resolveCompetition("PL");
+  const event = {
+    id: "401-summary",
+    date: "2026-09-19T14:00:00Z",
+    status: { type: { state: "in" } },
+    competitions: [{
+      competitors: [
+        { homeAway: "home", score: "1", team: { id: "361", displayName: "Newcastle United" } },
+        { homeAway: "away", score: "0", team: { id: "364", displayName: "Hull City" } },
+      ],
+      details: [],
+    }],
+  };
+  let calls = 0;
+  const hydrated = await fillMissingEspnDetails([event], async (requested) => {
+    calls += 1;
+    assert.equal(requested.id, event.id);
+    return { header: { competitions: [{ details: [{
+      type: { text: "Goal" },
+      clock: { displayValue: "3'" },
+      team: { id: "361" },
+      scoringPlay: true,
+      athletesInvolved: [{ shortName: "J. Willock" }],
+    }] }] } };
+  });
+  const normalised = normaliseEspn(hydrated[0], competition);
+  assert.equal(calls, 1);
+  assert.deepEqual(normalised.incidents.home.goals, [
+    { name: "Willock", time: "3'", ownGoal: false, penalty: false },
+  ]);
+});
+
+test("summary fallback only requests missing details for live scored events and respects its cap", async () => {
+  const live = (id, details = []) => ({
+    id,
+    status: { type: { state: "in" } },
+    competitions: [{ competitors: [{ score: "1" }], details }],
+  });
+  const events = [
+    live("one"),
+    live("two"),
+    live("three"),
+    live("already-has-details", [{ scoringPlay: true }]),
+    { ...live("not-live"), status: { type: { state: "post" } } },
+    { ...live("not-scored"), competitions: [{ competitors: [{ score: "0" }], details: [] }] },
+  ];
+  const requested = [];
+  const results = await fillMissingEspnDetails(events, async (event) => {
+    requested.push(event.id);
+    return { header: { competitions: [{ details: [] }] } };
+  }, 2);
+  assert.deepEqual(requested, ["one", "two"]);
+  assert.equal(results[3], events[3]);
+  assert.equal(results[0].competitions[0].details.length, 0);
 });
