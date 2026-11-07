@@ -15,7 +15,7 @@ import {
   normaliseFootballData,
   selectDisplayMatches,
 } from "./_shared/scores-core.js";
-import { espnMonthSelectors, fetchEspnWithRetry, londonDate, retainHybridEspnDetails, selectEspnWindowEvents } from "./_shared/espn-feed.js";
+import { espnMonthSelectors, fetchEspnWithRetry, fillMissingEspnDetails, londonDate, retainHybridEspnDetails, selectEspnWindowEvents } from "./_shared/espn-feed.js";
 
 const FOOTBALL_DATA_BASE = "https://api.football-data.org/v4";
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
@@ -98,8 +98,12 @@ async function fetchEspn(competition: any, from: string, to: string) {
       const data = await fetchEspnWithRetry(() => fetchJson(url));
       return data.events;
     }));
-    return selectEspnWindowEvents(batches, from, to, ESPN_EVENT_LIMIT)
-      .map((event: any) => normaliseEspn(event, competition));
+    const events = selectEspnWindowEvents(batches, from, to, ESPN_EVENT_LIMIT);
+    const withSummaryDetails = await fillMissingEspnDetails(events, (event: any) => {
+      const url = `${ESPN_BASE}/${encodeURIComponent(competition.espnSlug)}/summary?event=${encodeURIComponent(event.id)}`;
+      return fetchEspnWithRetry(() => fetchJson(url));
+    });
+    return withSummaryDetails.map((event: any) => normaliseEspn(event, competition));
   } catch (error: any) {
     throw new Error(`ESPN ${error?.message || error}`);
   }
